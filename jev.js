@@ -44,7 +44,7 @@ const QUESTIONS = {
   },
   sensitive: {
     type: 'noul',
-    instructions: 'Does the work involve secrets or credentials, production systems or servers, payments or money, or personal data about people?',
+    instructions: "Would doing this work require touching REAL secrets or credentials, live production systems or servers, real money movements, or real customers' or people's personal data records? Writing, fixing or testing code that merely deals with logins, payments, users or authentication (using no real credentials, accounts or data) does NOT count. Neither does writing about pricing or finance in the abstract.",
   },
   irreversible: {
     type: 'noul',
