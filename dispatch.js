@@ -44,10 +44,12 @@ function run(spec, brief, { cwd, timeoutMs = 900000 } = {}) {
       timers.forEach(clearTimeout);
       resolve({ ...r, pgid, ms: Date.now() - t0 });
     };
+    const groupAlive = () => { try { process.kill(-pgid, 0); return true; } catch { return false; } };
     const killGroup = (sig) => { try { process.kill(-pgid, sig); } catch { /* already gone */ } };
-    timers.push(setTimeout(() => {
+    timers.push(setTimeout(async () => {
       killGroup('SIGTERM');
-      setTimeout(() => killGroup('SIGKILL'), 2000).unref(); // outlives done(): must still escalate
+      for (let i = 0; i < 20 && groupAlive(); i++) await new Promise((r) => setTimeout(r, 100));
+      killGroup('SIGKILL'); // before resolving: the CLI exits right after run() returns
       done({ ok: false, code: null, out, err: (err + '\ntimeout').slice(-2000) });
     }, timeoutMs));
     child.stdout.on('data', (d) => { out = (out + d).slice(-20000); });

@@ -103,3 +103,13 @@ test('NUL in a brief and a bad --cwd give a JSON error and exit 1', () => {
     assert.equal(JSON.parse(r.stdout.toString()).ok, false);
   }
 });
+
+test('CLI condition: process.exit right after a timeout still leaves no TERM-ignoring child alive', async () => {
+  const script = `const {run}=require('./dispatch');
+run({cmd:'/bin/sh',args:['-c',"trap '' TERM; sleep 20"],stdin:false},'',{timeoutMs:300}).then(r=>{console.log(r.pgid);process.exit(1)})`;
+  const r = spawnSync(process.execPath, ['-e', script], { cwd: path.join(__dirname, '..') });
+  const pgid = Number(r.stdout.toString().trim());
+  assert.ok(pgid > 0);
+  assert.equal(await gone(pgid), true);
+  try { process.kill(-pgid, 'SIGKILL'); } catch { /* gone */ }
+});
