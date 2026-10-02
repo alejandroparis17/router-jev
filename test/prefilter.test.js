@@ -40,3 +40,15 @@ test('skipReason', () => {
 test('a secret past the length limit is still caught as a secret', () => {
   assert.equal(skipReason(long + ' password = x'), 'secret');
 });
+
+test('quoted .env and natural-language secrets are secrets', () => {
+  for (const m of [
+    'edita el archivo `.env` ahora mismo por favor',
+    'abre ".env" y cambia el puerto a mil',
+    'revisa (.env) y dime qué variables faltan ahora',
+    'la password es hunter2 para el servidor entero',
+    'mi contraseña es x1y2z3 y la clave es otra cosa',
+    'the token is abc123 so please use it for the call',
+  ]) assert.equal(skipReason(m), 'secret', m);
+  assert.equal(skipReason('arregla el flujo de reset password cuando el usuario no existe'), null);
+});
