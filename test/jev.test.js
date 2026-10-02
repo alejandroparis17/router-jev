@@ -67,3 +67,17 @@ test('parse rejects unknown choice not in LADDERS or none', () => {
   assert.equal(parse(answers({ kind: { type: 'choice', choice: 'inventado', probabilities: { inventado: 0.9 } } })), null);
   assert.equal(parse(answers({ kind: { type: 'choice', choice: 'none', probabilities: { none: 0.9 } } })).tipo, 'none');
 });
+
+test('parse rejects non-finite scores, missing confidence and out-of-range probabilities', () => {
+  const w = (o) => ({ weight: { type: 'score', score: 3.2, confidence: 0.8, ...o } });
+  const kind = (p) => ({ kind: { type: 'choice', choice: 'bug', probabilities: { bug: p }, confidence: 0.8 } });
+  assert.ok(parse(answers()));
+  assert.equal(parse(answers(w({ score: null }))), null);
+  assert.equal(parse(answers(w({ score: '3' }))), null);
+  assert.equal(parse(answers(w({ score: NaN }))), null);
+  assert.equal(parse(answers(w({ confidence: undefined }))), null);
+  assert.equal(parse(answers(w({ confidence: '0.8' }))), null);
+  assert.equal(parse(answers({ depends: { type: 'noul', noul: NaN } })), null);
+  assert.equal(parse(answers(kind(1.5))), null);
+  assert.equal(parse(answers(kind(-0.1))), null);
+});

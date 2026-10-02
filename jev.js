@@ -66,13 +66,14 @@ function parse(a) {
   const noul = (x) => (x?.type === 'noul' && typeof x.noul === 'number' && x.noul >= 0 && x.noul <= 1 ? x.noul : null);
   const w = a?.weight;
   const k = a?.kind;
-  if (w?.type !== 'score' || !(w.score >= 0 && w.score <= 4)) return null;
+  const num = (x) => typeof x === 'number' && Number.isFinite(x);
+  if (w?.type !== 'score' || !num(w.score) || !(w.score >= 0 && w.score <= 4) || !num(w.confidence)) return null;
   if (k?.type !== 'choice' || typeof k.choice !== 'string') return null;
   // Reject Object.prototype keys and unknown choices.
   const { LADDERS } = require('./policy');
   if (k.choice !== 'none' && !Object.hasOwn(LADDERS, k.choice)) return null;
   const [depende, sensible, irreversible, tipoProb] = [noul(a.depends), noul(a.sensitive), noul(a.irreversible), k.probabilities?.[k.choice]];
-  if ([depende, sensible, irreversible, tipoProb].some((v) => typeof v !== 'number')) return null;
+  if ([depende, sensible, irreversible, tipoProb].some((v) => !num(v) || v < 0 || v > 1)) return null;
   // Score is a 0-4 mean; weight 1-5. An unsure distribution (low confidence) takes the heavier.
   const peso = Math.min(5, Math.round(w.score) + 1 + (w.confidence < 0.4 ? 1 : 0));
   return { peso, tipo: k.choice, tipoProb, depende, sensible, irreversible };
