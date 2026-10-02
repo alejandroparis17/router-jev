@@ -22,6 +22,17 @@ test('skipReason', () => {
     ['arregla el flujo de reset password cuando el usuario no existe', null],
     [long, 'long'],
     ['a'.repeat(MAX_CHARS + 1), 'short'],
+    ['OPENAI_API_KEY=sk-short está aquí en la configuración', 'secret'],
+    ['El token GITHUB_TOKEN=ghp_abcdefghijklmnopqrst está aquí ahora', 'secret'],
+    ['La contraseña DB_PASSWORD=abc123 está en la base de datos', 'secret'],
+    ['AWS_SECRET_ACCESS_KEY=abc está en la configuración del sistema', 'secret'],
+    ['La clave SECRET_KEY=abc se usa para sesiones', 'secret'],
+    ['Los datos con "password": "hunter2" están aquí ahora', 'secret'],
+    ['El cliente usa "token": "abc123" para autenticarse correctamente', 'secret'],
+    ['GitHub token ghp_abcdefghijklmnopqrstuv está en el repositorio', 'secret'],
+    ['Slack token xoxb-1234567890-1234567890-abcdefghijk está aquí ahora', 'secret'],
+    ['Google API AIza1234567890123456789012345678901234 está aquí ahora', 'secret'],
+    ['Authorization: Basic aGVsbG8gd29ybGQ= está en los headers', 'secret'],
   ];
   for (const [msg, expected] of cases) assert.equal(skipReason(msg), expected, msg.slice(0, 40));
 });
