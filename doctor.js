@@ -16,6 +16,11 @@ function atLeast(v, min) {
   return true;
 }
 
+// Exact command under hooks.UserPromptSubmit, not a substring of the file.
+const hookInstalled = (settings, command) =>
+  Array.isArray(settings?.hooks?.UserPromptSubmit) &&
+  settings.hooks.UserPromptSubmit.some((g) => g?.hooks?.some((h) => h?.command === command));
+
 const out = (cmd, args) => execFileSync(cmd, args, { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] });
 
 const checks = [
@@ -24,7 +29,7 @@ const checks = [
   ['agy installed', () => /\d+\.\d+/.test(out('agy', ['--version']))],
   ['Jev key in the Keychain', () => Boolean(getKey())],
   ['repos.json lists at least one path', () => JSON.parse(fs.readFileSync(path.join(log.HOME, 'repos.json'), 'utf8')).repos.length > 0],
-  ['hook installed in settings.json', () => fs.readFileSync(path.join(os.homedir(), '.claude', 'settings.json'), 'utf8').includes('router/route.js')],
+  ['hook installed in settings.json', () => hookInstalled(JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', 'settings.json'), 'utf8')), `node ${path.join(os.homedir(), '.claude', 'router', 'route.js')}`)],
 ];
 
 if (require.main === module) {
@@ -38,4 +43,4 @@ if (require.main === module) {
   process.exit(bad ? 1 : 0);
 }
 
-module.exports = { atLeast };
+module.exports = { atLeast, hookInstalled };
