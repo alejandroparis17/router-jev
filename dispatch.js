@@ -37,6 +37,7 @@ function run(spec, brief, { cwd, timeoutMs = 900000 } = {}) {
     let out = '';
     let err = '';
     let finished = false;
+    let timedOut = false;
     const timers = [];
     const done = (r) => {
       if (finished) return;
@@ -47,6 +48,7 @@ function run(spec, brief, { cwd, timeoutMs = 900000 } = {}) {
     const groupAlive = () => { try { process.kill(-pgid, 0); return true; } catch { return false; } };
     const killGroup = (sig) => { try { process.kill(-pgid, sig); } catch { /* already gone */ } };
     timers.push(setTimeout(async () => {
+      timedOut = true; // a 'close' during the grace wait must not resolve before the group is SIGKILLed
       killGroup('SIGTERM');
       for (let i = 0; i < 20 && groupAlive(); i++) await new Promise((r) => setTimeout(r, 100));
       killGroup('SIGKILL'); // before resolving: the CLI exits right after run() returns
@@ -55,7 +57,7 @@ function run(spec, brief, { cwd, timeoutMs = 900000 } = {}) {
     child.stdout.on('data', (d) => { out = (out + d).slice(-20000); });
     child.stderr.on('data', (d) => { err = (err + d).slice(-2000); });
     child.on('error', (e) => done({ ok: false, code: null, out: '', err: e.message }));
-    child.on('close', (code) => done({ ok: code === 0, code, out, err }));
+    child.on('close', (code) => !timedOut && done({ ok: code === 0, code, out, err }));
     child.stdin.on('error', () => {});
     child.stdin.end(spec.stdin ? brief : ''); // always closed: codex waits for EOF otherwise
   });

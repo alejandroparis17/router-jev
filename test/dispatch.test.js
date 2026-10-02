@@ -113,3 +113,11 @@ run({cmd:'/bin/sh',args:['-c',"trap '' TERM; sleep 20"],stdin:false},'',{timeout
   assert.equal(await gone(pgid), true);
   try { process.kill(-pgid, 'SIGKILL'); } catch { /* gone */ }
 });
+
+test('timeout: a child that exits on TERM but leaves a group member behind still has the group killed', async () => {
+  const r = await run({ cmd: '/bin/sh', args: ['-c', "(trap '' TERM; exec sleep 20 >/dev/null 2>&1) & exec sleep 20"], stdin: false }, '', { timeoutMs: 300 });
+  assert.equal(r.ok, false);
+  // gone at resolve time (allow 500 ms for init to reap the killed zombie); the old code resolved ~2 s before the kill
+  for (let i = 0; i < 10; i++) { try { process.kill(-r.pgid, 0); } catch { break; } await new Promise((x) => setTimeout(x, 50)); }
+  assert.throws(() => process.kill(-r.pgid, 0)); // ESRCH, or EPERM for a zombie on macOS
+});
