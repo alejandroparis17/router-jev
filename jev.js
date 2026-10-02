@@ -4,7 +4,7 @@ const { execFileSync } = require('child_process');
 
 // Jev, TypeSafe's System One model: typed judgments about a request. Same service NORTH uses,
 // with its own key (Keychain service "typesafe-jev"). ROUTER_JEV_URL and ROUTER_JEV_KEY exist for tests.
-const ENDPOINT = process.env.ROUTER_JEV_URL || 'https://api.typesafe.ai/v1/systemone';
+const REAL_ENDPOINT = 'https://api.typesafe.ai/v1/systemone';
 const TIMEOUT_MS = 2200;
 
 const WEIGHT = [
@@ -68,6 +68,9 @@ function parse(a) {
   const k = a?.kind;
   if (w?.type !== 'score' || !(w.score >= 0 && w.score <= 4)) return null;
   if (k?.type !== 'choice' || typeof k.choice !== 'string') return null;
+  // Reject Object.prototype keys and unknown choices.
+  const { LADDERS } = require('./policy');
+  if (k.choice !== 'none' && !Object.hasOwn(LADDERS, k.choice)) return null;
   const [depende, sensible, irreversible, tipoProb] = [noul(a.depends), noul(a.sensitive), noul(a.irreversible), k.probabilities?.[k.choice]];
   if ([depende, sensible, irreversible, tipoProb].some((v) => typeof v !== 'number')) return null;
   // Score is a 0-4 mean; weight 1-5. An unsure distribution (low confidence) takes the heavier.
@@ -76,10 +79,12 @@ function parse(a) {
 }
 
 async function classify(message, { fetchImpl = fetch, getKey: key = getKey } = {}) {
-  const k = key();
-  if (!k) return null;
   try {
-    const res = await fetchImpl(ENDPOINT, {
+    const k = key();
+    if (!k) return null;
+    // Honour ROUTER_JEV_URL only if ROUTER_JEV_KEY is set; otherwise use the real endpoint.
+    const endpoint = process.env.ROUTER_JEV_KEY ? (process.env.ROUTER_JEV_URL || REAL_ENDPOINT) : REAL_ENDPOINT;
+    const res = await fetchImpl(endpoint, {
       method: 'POST',
       headers: { authorization: `Bearer ${k}`, 'content-type': 'application/json' },
       body: JSON.stringify({ model: 'jev-latest', state: message, questions: QUESTIONS }),

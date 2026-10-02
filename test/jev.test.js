@@ -56,3 +56,14 @@ test('the request carries the message as state and the key as a bearer token', a
   assert.equal(body.model, 'jev-latest');
   assert.equal(seen.init.headers.authorization, 'Bearer k');
 });
+
+test('parse rejects Object.prototype keys in choice', () => {
+  assert.equal(parse(answers({ kind: { type: 'choice', choice: 'constructor', probabilities: { constructor: 0.9 } } })), null);
+  assert.equal(parse(answers({ kind: { type: 'choice', choice: '__proto__', probabilities: { __proto__: 0.9 } } })), null);
+  assert.equal(parse(answers({ kind: { type: 'choice', choice: 'toString', probabilities: { toString: 0.9 } } })), null);
+});
+
+test('parse rejects unknown choice not in LADDERS or none', () => {
+  assert.equal(parse(answers({ kind: { type: 'choice', choice: 'inventado', probabilities: { inventado: 0.9 } } })), null);
+  assert.equal(parse(answers({ kind: { type: 'choice', choice: 'none', probabilities: { none: 0.9 } } })).tipo, 'none');
+});
