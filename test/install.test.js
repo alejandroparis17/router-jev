@@ -27,3 +27,65 @@ test('withSection appends once and replaces in place afterwards', () => {
   assert.equal(two.split('router:start').length, 2);
   assert.ok(two.includes('v2') && two.startsWith(doc));
 });
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { main } = require('../install');
+const S = '<!-- router:start -->', E = '<!-- router:end -->';
+
+test('withSection refuses broken markers', () => {
+  for (const bad of [`a ${S} b`, `a ${E} b`, `${E} x ${S}`, `${S}${E}${S}${E}`]) {
+    assert.throws(() => withSection(bad, SECTION), /marcadores/);
+  }
+});
+
+test('withSection on empty text is just the section', () => {
+  assert.equal(withSection('', SECTION), SECTION);
+});
+
+test('addHook matches the exact command and rejects a non-array', () => {
+  assert.equal(addHook({ hooks: { UserPromptSubmit: [{ hooks: [{ command: CMD + ' x' }] }] } }, CMD).hooks.UserPromptSubmit.length, 2);
+  assert.throws(() => addHook({ hooks: { UserPromptSubmit: {} } }, CMD), /no es una lista/);
+});
+
+function tmp(settings, claude) {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'router-'));
+  fs.writeFileSync(path.join(d, 'settings.json'), settings);
+  if (claude !== undefined) fs.writeFileSync(path.join(d, 'CLAUDE.md'), claude);
+  return d;
+}
+const quiet = (fn) => { const l = console.log; console.log = () => {}; try { return fn(); } finally { console.log = l; } };
+
+test('main --apply writes, keeps the first backup and a second run changes nothing', () => {
+  const d = tmp('{"model":"x"}', '# mío\n');
+  quiet(() => main(true, d));
+  assert.equal(fs.readFileSync(path.join(d, 'settings.json.bak-router'), 'utf8'), '{"model":"x"}');
+  assert.ok(JSON.parse(fs.readFileSync(path.join(d, 'settings.json'), 'utf8')).hooks.UserPromptSubmit);
+  assert.ok(fs.readFileSync(path.join(d, 'CLAUDE.md'), 'utf8').includes(S));
+  assert.ok(fs.existsSync(path.join(d, 'router', 'repos.json')));
+  const before = fs.readdirSync(d).sort();
+  quiet(() => main(true, d));
+  assert.deepEqual(fs.readdirSync(d).sort(), before);
+  assert.equal(fs.readFileSync(path.join(d, 'settings.json.bak-router'), 'utf8'), '{"model":"x"}');
+});
+
+test('main never overwrites an existing backup', () => {
+  const d = tmp('{}', 'x\n');
+  fs.writeFileSync(path.join(d, 'settings.json.bak-router'), 'OLD');
+  quiet(() => main(true, d));
+  assert.equal(fs.readFileSync(path.join(d, 'settings.json.bak-router'), 'utf8'), 'OLD');
+  assert.ok(fs.readdirSync(d).some((f) => /^settings\.json\.bak-router-\d+$/.test(f)));
+});
+
+test('main: invalid settings writes nothing; missing CLAUDE.md is empty; dry run writes nothing', () => {
+  const bad = tmp('{nope');
+  assert.throws(() => quiet(() => main(true, bad)), /no es JSON válido/);
+  assert.deepEqual(fs.readdirSync(bad), ['settings.json']);
+  const d = tmp('{}');
+  quiet(() => main(false, d));
+  assert.deepEqual(fs.readdirSync(d), ['settings.json']);
+  quiet(() => main(true, d));
+  assert.equal(fs.readFileSync(path.join(d, 'CLAUDE.md'), 'utf8'), SECTION);
+  assert.ok(!fs.existsSync(path.join(d, 'CLAUDE.md.bak-router')));
+});
