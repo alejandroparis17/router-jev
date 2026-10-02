@@ -94,3 +94,13 @@ test('empty, broken or short input: silence and exit 0, no call', async (t) => {
   }
   assert.equal(s.calls.length, 0);
 });
+
+test('the deadline holds even if stdin never closes', async () => {
+  const t0 = Date.now();
+  const child = spawn(process.execPath, [path.join(__dirname, '..', 'route.js')], { env: { ...process.env, ROUTER_HOME: os.tmpdir() } });
+  let out = '';
+  child.stdout.on('data', (d) => (out += d));
+  const code = await new Promise((r) => child.on('close', r));
+  assert.deepEqual([out, code], ['', 0]);
+  assert.ok(Date.now() - t0 < 4500);
+});

@@ -11,6 +11,7 @@ const { decide, POLICY_VERSION } = require('./policy');
 const log = require('./log');
 
 const DEADLINE_MS = 3000;
+const timer = setTimeout(() => process.exit(0), DEADLINE_MS); // armed before any read
 
 function repoRoot(cwd) {
   try {
@@ -46,9 +47,18 @@ function line(d, j) {
   return bits.join(' · ');
 }
 
+function readStdin() {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    process.stdin.on('data', (c) => chunks.push(c));
+    process.stdin.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    process.stdin.on('error', reject);
+  });
+}
+
 async function main() {
   const t0 = Date.now();
-  const { prompt = '', cwd = process.cwd() } = JSON.parse(fs.readFileSync(0, 'utf8'));
+  const { prompt = '', cwd = process.cwd() } = JSON.parse(await readStdin());
   const repo = repoRoot(cwd);
   const entry = { policy: POLICY_VERSION, repo: path.basename(repo) };
 
@@ -63,5 +73,4 @@ async function main() {
   process.stdout.write(line(d, j) + '\n');
 }
 
-const timer = setTimeout(() => process.exit(0), DEADLINE_MS);
 main().catch(() => {}).finally(() => clearTimeout(timer));
