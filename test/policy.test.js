@@ -67,3 +67,9 @@ test('undefined or NaN in risk fields keep the task in session (fail closed)', (
   assert.equal(d({ irreversible: undefined }).agent, 'session');
   assert.equal(d({ depende: undefined }).agent, 'session');
 });
+
+test('the unsure fallback gets a cross-family reviewer only when heavy', () => {
+  assert.equal(d({ tipoProb: 0.59, peso: 5 }).reviewer, 'codex-review');
+  assert.equal(d({ tipoProb: 0.59, peso: 2 }).reviewer, null);
+  assert.equal(d({ tipoProb: 0.59, peso: 5 }).why, 'unsure');
+});

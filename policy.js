@@ -33,7 +33,7 @@ function decide(j) {
   if (!(j.sensible < MAX_RISK) || !(j.irreversible < MAX_RISK)) return session('risk');
   if (!(j.depende < MAX_DEPENDS)) return session('context');
   if (j.tipo === 'none' || !Object.hasOwn(LADDERS, j.tipo)) return session('none');
-  if (j.tipoProb < MIN_TYPE) return { agent: 'claude-sonnet', why: 'unsure', skills: [], reviewer: null, up: null };
+  if (j.tipoProb < MIN_TYPE) return { agent: 'claude-sonnet', why: 'unsure', skills: [], reviewer: j.peso >= 4 ? 'codex-review' : null, up: null };
 
   const ladder = LADDERS[j.tipo];
   let i = ladder.findIndex(([, max]) => j.peso <= max);
