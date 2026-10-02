@@ -31,3 +31,16 @@ test('append never throws, even when the directory cannot be written', () => {
   const bad = require('child_process').spawnSync(process.execPath, ['-e', "process.env.ROUTER_HOME='/dev/null/x'; require('./log').append({a:1})"], { cwd: path.join(__dirname, '..') });
   assert.equal(bad.status, 0);
 });
+
+test('HOME directory is created with mode 0o700', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'router-mode-'));
+  const testHome = path.join(tempDir, 'home');
+  // Test that mkdirSync is called with mode 0o700
+  process.env.ROUTER_HOME = testHome;
+  delete require.cache[require.resolve('../log')];
+  const testLog = require('../log');
+  testLog.append({ test: 'mode' });
+  const dirMode = fs.statSync(testHome).mode & 0o777;
+  assert.equal(dirMode, 0o700, `Expected 0o700 but got 0o${dirMode.toString(8)}`);
+  fs.rmSync(tempDir, { recursive: true });
+});

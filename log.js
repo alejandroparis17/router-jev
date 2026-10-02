@@ -20,7 +20,7 @@ function prune(now = Date.now()) {
 
 function append(entry) {
   try {
-    fs.mkdirSync(HOME, { recursive: true });
+    fs.mkdirSync(HOME, { recursive: true, mode: 0o700 });
     const row = { id: crypto.randomUUID(), ts: new Date().toISOString(), ...entry };
     fs.appendFileSync(FILE, JSON.stringify(row) + '\n', { mode: 0o600 });
     fs.chmodSync(FILE, 0o600);
