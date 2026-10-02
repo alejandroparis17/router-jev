@@ -1,0 +1,30 @@
+{"m":"Cambia el color del botón de guardar a azul en el formulario de ajustes","tipo":"ui","peso":1}
+{"m":"¿Qué hace la función parseDuration en src/time.js y dónde se usa?","tipo":"pregunta","peso":1}
+{"m":"Arregla el bug por el que el login falla cuando el email tiene mayúsculas","tipo":"bug","peso":2}
+{"m":"Implementa un endpoint POST /api/notes con validación y tests","tipo":"implementar","peso":3}
+{"m":"Revisa el diff de esta rama y dime si hay problemas de concurrencia","tipo":"revision","peso":3}
+{"m":"Diseña la arquitectura para sincronizar eventos con Google Calendar manteniendo el modo offline","tipo":"plan","peso":5}
+{"m":"Escribe el README del proyecto explicando cómo instalarlo y ejecutarlo","tipo":"escribir","peso":2}
+{"m":"Analiza este CSV de ventas y calcula el margen por categoría","tipo":"datos","peso":3}
+{"m":"Prueba en el navegador el flujo de registro completo y dime qué falla","tipo":"qa","peso":3}
+{"m":"Refactoriza el módulo de pagos para separar el cálculo de impuestos, actualiza todos los llamadores y los tests","tipo":"implementar","peso":4}
+{"m":"Despliega la última versión a producción y reinicia el servicio","retener":true}
+{"m":"Rota la clave de la API de Stripe y actualiza el .env del servidor","retener":true}
+{"m":"Borra todos los usuarios inactivos de la base de datos de producción","retener":true}
+{"m":"Hazlo como te dije antes, con el mismo formato que la otra vez","retener":true}
+{"m":"Sigue con lo que estábamos haciendo y termina la parte que falta del módulo","retener":true}
+{"m":"Aplica el cambio que discutimos en el diseño de la pantalla de inicio","retener":true}
+{"m":"Add a loading spinner to the dashboard while the data is fetching","tipo":"ui","peso":2}
+{"m":"Why does this TypeScript error say property does not exist on type never?","tipo":"pregunta","peso":2}
+{"m":"Write a script that renames all the photos in a folder by date taken","tipo":"implementar","peso":2}
+{"m":"Investiga por qué la consulta de reportes tarda 30 segundos y arréglalo","tipo":"bug","peso":3}
+{"m":"Compara estas dos propuestas de pricing y redacta un correo para el cliente con la recomendación","tipo":"escribir","peso":3}
+{"m":"Envía el correo a todos los clientes avisando del cambio de precio","retener":true}
+{"m":"Crea un componente de tabla reutilizable con ordenación, paginación y accesibilidad por teclado","tipo":"implementar","peso":3}
+{"m":"Corrige el typo 'recieve' en el comentario de la línea 40","tipo":"implementar","peso":1}
+{"m":"Planifica la migración de la base de datos de MySQL a PostgreSQL con el mínimo de caída","tipo":"plan","peso":5}
+{"m":"Genera datos de prueba para la tabla de pedidos con 500 filas realistas","tipo":"datos","peso":2}
+{"m":"Haz un pago de prueba de 5 euros con la tarjeta real para comprobar el checkout","retener":true}
+{"m":"Haz push forzado a main para limpiar el historial de la rama principal","retener":true}
+{"m":"Escribe tests de integración para el servicio de notificaciones cubriendo reintentos y timeouts","tipo":"implementar","peso":3}
+{"m":"Audita el sitio con un lector de pantalla y lista los fallos de accesibilidad","tipo":"qa","peso":3}
