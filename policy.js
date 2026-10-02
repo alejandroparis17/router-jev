@@ -29,13 +29,16 @@ const family = (agent) => agent.split('-')[0];
 const session = (why) => ({ agent: 'session', why, skills: [], reviewer: null, up: null });
 
 function decide(j) {
-  if (j.sensible >= MAX_RISK || j.irreversible >= MAX_RISK) return session('risk');
-  if (j.depende >= MAX_DEPENDS) return session('context');
-  const ladder = LADDERS[j.tipo];
-  if (j.tipo === 'none' || !ladder) return session('none');
+  // Fail closed: undefined/NaN in risk fields stay in session.
+  if (!(j.sensible < MAX_RISK) || !(j.irreversible < MAX_RISK)) return session('risk');
+  if (!(j.depende < MAX_DEPENDS)) return session('context');
+  if (j.tipo === 'none' || !Object.hasOwn(LADDERS, j.tipo)) return session('none');
   if (j.tipoProb < MIN_TYPE) return { agent: 'claude-sonnet', why: 'unsure', skills: [], reviewer: null, up: null };
 
-  const i = ladder.findIndex(([, max]) => j.peso <= max);
+  const ladder = LADDERS[j.tipo];
+  let i = ladder.findIndex(([, max]) => j.peso <= max);
+  // Clamp to last rung if peso is out of range.
+  if (i === -1) i = ladder.length - 1;
   const agent = ladder[i][0];
   const heavy = j.peso >= 4;
   return {

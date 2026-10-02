@@ -48,3 +48,22 @@ test('skills are named only for agents that have them; up is the next rung', () 
   assert.equal(d({ tipo: 'bug', peso: 2 }).up, 'codex-astra');
   assert.equal(d({ tipo: 'bug', peso: 3 }).up, null);
 });
+
+test('peso clamping: peso > 5 or NaN uses the last rung, never throws', () => {
+  assert.equal(d({ peso: 9 }).agent, 'codex-astra');
+  assert.equal(d({ peso: NaN }).agent, 'codex-astra');
+});
+
+test('Object.prototype keys in tipo return session none, never throw', () => {
+  assert.equal(d({ tipo: 'constructor' }).why, 'none');
+  assert.equal(d({ tipo: 'toString' }).why, 'none');
+  assert.equal(d({ tipo: '__proto__' }).why, 'none');
+  assert.equal(d({ tipo: 'constructor' }).agent, 'session');
+});
+
+test('undefined or NaN in risk fields keep the task in session (fail closed)', () => {
+  assert.equal(d({ sensible: undefined }).agent, 'session');
+  assert.equal(d({ sensible: NaN }).why, 'risk');
+  assert.equal(d({ irreversible: undefined }).agent, 'session');
+  assert.equal(d({ depende: undefined }).agent, 'session');
+});
