@@ -68,3 +68,38 @@ test('unknown agent exits 2 with a hint; --record exits 0', () => {
   assert.match(unknown.stderr.toString(), /Agent tool/);
   assert.equal(spawnSync(process.execPath, ['dispatch.js', '--record', 'claude-sonnet'], { cwd, env }).status, 0);
 });
+
+test('codex-review takes no prompt and no stdin', () => {
+  const s = AGENTS['codex-review']({ cwd: '/r', outFile: '/o', brief: 'x' });
+  assert.deepEqual([s.args, s.stdin], [['review', '--uncommitted'], false]);
+});
+
+const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+const gone = async (pgid) => { for (let i = 0; i < 30; i++) { try { process.kill(-pgid, 0); } catch { return true; } await new Promise((r) => setTimeout(r, 100)); } return false; };
+
+test('timeout kills the whole process group: backgrounded child', async () => {
+  const sh = { cmd: '/bin/sh', args: ['-c', 'sleep 5 & echo $! ; wait'], stdin: false };
+  const r = await run(sh, '', { timeoutMs: 300 });
+  assert.equal(r.ok, false);
+  assert.ok(r.ms < 3000);
+  const pid = Number(r.out.trim());
+  for (let i = 0; i < 30 && alive(pid); i++) await new Promise((x) => setTimeout(x, 100));
+  assert.equal(alive(pid), false);
+});
+
+test('timeout escalates to SIGKILL for a child that traps TERM', async () => {
+  const r = await run({ cmd: '/bin/sh', args: ['-c', "trap '' TERM; sleep 3"], stdin: false }, '', { timeoutMs: 300 });
+  assert.equal(r.ok, false);
+  assert.ok(r.ms < 3000, `took ${r.ms}`);
+  assert.equal(await gone(r.pgid), true);
+});
+
+test('NUL in a brief and a bad --cwd give a JSON error and exit 1', () => {
+  const cwd = path.join(__dirname, '..');
+  const env = { ...process.env, ROUTER_HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'router-d-')) };
+  for (const [args, input] of [[['codex-reserve'], 'a\0b'], [['codex-reserve', '--cwd', '/no/such/dir'], 'x']]) {
+    const r = spawnSync(process.execPath, ['dispatch.js', ...args], { cwd, env, input });
+    assert.equal(r.status, 1, args.join(' '));
+    assert.equal(JSON.parse(r.stdout.toString()).ok, false);
+  }
+});
