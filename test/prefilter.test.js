@@ -52,3 +52,11 @@ test('quoted .env and natural-language secrets are secrets', () => {
   ]) assert.equal(skipReason(m), 'secret', m);
   assert.equal(skipReason('arregla el flujo de reset password cuando el usuario no existe'), null);
 });
+
+test('skipReason is linear-time on pathological input', () => {
+  for (const [m, want] of [['a'.repeat(70000), 'short'], ['a_'.repeat(35000), 'short'], ['API_'.repeat(20000), 'short'], ['a '.repeat(35000), 'long']]) {
+    const t0 = Date.now();
+    assert.equal(skipReason(m), want);
+    assert.ok(Date.now() - t0 < 200, `${m.slice(0, 6)} took ${Date.now() - t0}`);
+  }
+});
