@@ -54,7 +54,10 @@ function backup(file) {
 
 function atomicWrite(file, data) {
   const tmp = `${file}.tmp-router-${process.pid}`;
-  fs.writeFileSync(tmp, data);
+  let mode = 0o600; // new files are private; an existing file keeps its own mode
+  try { mode = fs.statSync(file).mode & 0o777; } catch { /* new file */ }
+  fs.writeFileSync(tmp, data, { mode });
+  fs.chmodSync(tmp, mode); // umask can narrow the mode given above
   fs.renameSync(tmp, file);
 }
 
@@ -66,7 +69,7 @@ function main(apply, dir = CLAUDE_DIR) {
 
   let settings;
   try { settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8')); }
-  catch (e) { throw new Error(`settings.json no se puede leer o no es JSON válido (${e.message}). No se ha escrito nada.`); }
+  catch { throw new Error(`${settingsFile} no se puede leer o no es JSON válido. No se ha escrito nada.`); }
   const nextSettings = addHook(settings, command);
   const hadClaude = fs.existsSync(claudeFile);
   const claude = hadClaude ? fs.readFileSync(claudeFile, 'utf8') : '';

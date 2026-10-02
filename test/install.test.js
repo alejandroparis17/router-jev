@@ -89,3 +89,20 @@ test('main: invalid settings writes nothing; missing CLAUDE.md is empty; dry run
   assert.equal(fs.readFileSync(path.join(d, 'CLAUDE.md'), 'utf8'), SECTION);
   assert.ok(!fs.existsSync(path.join(d, 'CLAUDE.md.bak-router')));
 });
+
+test('main keeps a 0600 original at 0600, creates new files 0600, and never echoes file content in errors', () => {
+  const d = tmp('{}', 'x\n');
+  fs.chmodSync(path.join(d, 'settings.json'), 0o600);
+  fs.chmodSync(path.join(d, 'CLAUDE.md'), 0o600);
+  quiet(() => main(true, d));
+  const mode = (f) => fs.statSync(path.join(d, f)).mode & 0o777;
+  assert.equal(mode('settings.json'), 0o600);
+  assert.equal(mode('CLAUDE.md'), 0o600);
+  assert.equal(mode('router/repos.json'), 0o600);
+
+  const bad = tmp('{"apiKey": "sk-FAKESECRET123" oops}');
+  let msg = '';
+  try { quiet(() => main(true, bad)); } catch (e) { msg = e.message; }
+  assert.ok(msg.includes('settings.json') && msg.includes(bad) && /No se ha escrito nada/.test(msg), msg);
+  assert.ok(!msg.includes('FAKESECRET') && !msg.includes('oops'), msg);
+});
