@@ -104,3 +104,18 @@ test('the deadline holds even if stdin never closes', async () => {
   assert.deepEqual([out, code], ['', 0]);
   assert.ok(Date.now() - t0 < 4500);
 });
+
+test('a malformed or unreadable router.json fails closed; an absent one means enabled', async (t) => {
+  const s = await setup(); t.after(s.close);
+  const f = path.join(s.repo, '.claude', 'router.json');
+  fs.mkdirSync(path.dirname(f));
+  fs.writeFileSync(f, '{nope');
+  assert.equal((await s.run({ prompt: MESSAGE, cwd: s.repo })).out, '');
+  fs.rmSync(f);
+  fs.mkdirSync(f); // unreadable as a file (EISDIR)
+  assert.equal((await s.run({ prompt: MESSAGE, cwd: s.repo })).out, '');
+  assert.equal(s.calls.length, 0);
+  assert.ok(s.entries().every((e) => e.skip === 'repo-disabled'));
+  fs.rmdirSync(f);
+  assert.match((await s.run({ prompt: MESSAGE, cwd: s.repo })).out, /^\[router\]/);
+});

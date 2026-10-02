@@ -33,8 +33,8 @@ function allowed(repo) {
 function switchedOff(repo) {
   try {
     return JSON.parse(fs.readFileSync(path.join(repo, '.claude', 'router.json'), 'utf8')).enabled === false;
-  } catch {
-    return false;
+  } catch (e) {
+    return e.code !== 'ENOENT'; // absent = enabled; malformed or unreadable = fail closed
   }
 }
 
