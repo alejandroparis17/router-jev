@@ -8,9 +8,8 @@ const d = (o) => decide({ ...base, ...o });
 test('exceptions come first and delegate nothing', () => {
   assert.deepEqual([d({ sensible: 0.3 }).agent, d({ sensible: 0.3 }).why], ['session', 'risk']);
   assert.equal(d({ irreversible: 0.31 }).why, 'risk');
-  assert.equal(d({ depende: 0.4 }).why, 'context');
   assert.equal(d({ peso: 5, sensible: 0.5 }).reviewer, null);
-  assert.equal(d({ sensible: 0.29, depende: 0.39 }).agent, 'codex-reserve');
+  assert.equal(d({ sensible: 0.29 }).agent, 'codex-reserve');
 });
 
 test('no type or an unknown type stays in the session; low confidence goes to sonnet', () => {
@@ -65,11 +64,20 @@ test('undefined or NaN in risk fields keep the task in session (fail closed)', (
   assert.equal(d({ sensible: undefined }).agent, 'session');
   assert.equal(d({ sensible: NaN }).why, 'risk');
   assert.equal(d({ irreversible: undefined }).agent, 'session');
-  assert.equal(d({ depende: undefined }).agent, 'session');
 });
 
 test('the unsure fallback gets a cross-family reviewer only when heavy', () => {
   assert.equal(d({ tipoProb: 0.59, peso: 5 }).reviewer, 'codex-review');
   assert.equal(d({ tipoProb: 0.59, peso: 2 }).reviewer, null);
   assert.equal(d({ tipoProb: 0.59, peso: 5 }).why, 'unsure');
+});
+
+test('depending on the conversation never keeps a task in the session; it asks for a self-contained brief', () => {
+  assert.deepEqual([d({ depende: 0.39 }).agent, d({ depende: 0.39 }).context], ['codex-reserve', false]);
+  assert.deepEqual([d({ depende: 0.4 }).agent, d({ depende: 0.4 }).context], ['codex-reserve', true]);
+  assert.equal(d({ depende: 0.96, peso: 5 }).agent, 'codex-astra');
+  assert.equal(d({ depende: undefined }).context, true);
+  assert.equal(d({ depende: NaN }).agent, 'codex-reserve');
+  assert.equal(d({ depende: 0.9, sensible: 0.5 }).agent, 'session');
+  assert.equal(d({ depende: 0.9, tipoProb: 0.3 }).context, true);
 });

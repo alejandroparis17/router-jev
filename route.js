@@ -44,6 +44,7 @@ function line(d, j) {
   if (d.skills.length) bits.push(`skills: ${d.skills.join(', ')}`);
   if (d.reviewer) bits.push(`revisa: ${d.reviewer}`);
   if (d.up) bits.push(`sube a: ${d.up}`);
+  if (d.context) bits.push('encargo autocontenido');
   return bits.join(' · ');
 }
 

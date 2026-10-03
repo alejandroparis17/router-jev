@@ -74,7 +74,7 @@ test('a repo outside the allowlist, or switched off, is left alone', async (t) =
   assert.equal(b.calls.length, 0);
 });
 
-test('risk or context keeps the task in the session', async (t) => {
+test('risk keeps the task in the session', async (t) => {
   const s = await setup({ answers: { ...ANSWERS, sensitive: { type: 'noul', noul: 0.9 } } }); t.after(s.close);
   assert.match((await s.run({ prompt: MESSAGE, cwd: s.repo })).out, /^\[router\] → sesión actual \(risk\)/);
 });
@@ -118,4 +118,11 @@ test('a malformed or unreadable router.json fails closed; an absent one means en
   assert.ok(s.entries().every((e) => e.skip === 'repo-disabled'));
   fs.rmdirSync(f);
   assert.match((await s.run({ prompt: MESSAGE, cwd: s.repo })).out, /^\[router\]/);
+});
+
+test('a task that depends on the conversation is still routed, flagged to need a self-contained brief', async (t) => {
+  const s = await setup({ answers: { ...ANSWERS, depends: { type: 'noul', noul: 0.9 } } }); t.after(s.close);
+  const { out } = await s.run({ prompt: MESSAGE, cwd: s.repo });
+  assert.match(out, /^\[router\] → codex-astra · .* · encargo autocontenido\n$/);
+  assert.equal(s.entries()[0].depende, 0.9);
 });

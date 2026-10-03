@@ -26,14 +26,16 @@ const SKILLS = {
 };
 
 const family = (agent) => agent.split('-')[0];
-const session = (why) => ({ agent: 'session', why, skills: [], reviewer: null, up: null });
+const session = (why) => ({ agent: 'session', why, skills: [], reviewer: null, up: null, context: false });
 
 function decide(j) {
+  // Depending on the conversation does not keep a task here: the session writes the brief, so it
+  // can carry the context. It only flags that the brief must be self-contained (fails to true).
+  const context = !(j.depende < MAX_DEPENDS);
   // Fail closed: undefined/NaN in risk fields stay in session.
   if (!(j.sensible < MAX_RISK) || !(j.irreversible < MAX_RISK)) return session('risk');
-  if (!(j.depende < MAX_DEPENDS)) return session('context');
   if (j.tipo === 'none' || !Object.hasOwn(LADDERS, j.tipo)) return session('none');
-  if (j.tipoProb < MIN_TYPE) return { agent: 'claude-sonnet', why: 'unsure', skills: [], reviewer: j.peso >= 4 ? 'codex-review' : null, up: null };
+  if (j.tipoProb < MIN_TYPE) return { agent: 'claude-sonnet', why: 'unsure', skills: [], reviewer: j.peso >= 4 ? 'codex-review' : null, up: null, context };
 
   const ladder = LADDERS[j.tipo];
   let i = ladder.findIndex(([, max]) => j.peso <= max);
@@ -48,6 +50,7 @@ function decide(j) {
     skills: family(agent) === 'agy' ? [] : SKILLS[j.tipo],
     reviewer: heavy ? (family(agent) === 'claude' ? 'codex-review' : 'claude-sonnet') : null,
     up: ladder[i + 1]?.[0] ?? null,
+    context,
   };
 }
 
