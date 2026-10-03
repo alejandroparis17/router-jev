@@ -48,7 +48,7 @@ const QUESTIONS = {
   },
   irreversible: {
     type: 'noul',
-    instructions: 'Would doing this work take an action that is hard to undo or that reaches outside this computer: deploying, deleting data, force-pushing, sending an email or message, charging a payment? Ignore the fact that the task may be handed to another coding assistant.',
+    instructions: 'Does this request ask for an action to be PERFORMED that is hard to undo or that reaches outside this computer: deploying, deleting real data, force-pushing, sending an email or message, charging a payment? Questions, explanations and requests to write, edit, review or test code do NOT count, even when they mention those actions or ask for code that performs them; only count it when the request itself asks for the action to actually be carried out now. Ignore the fact that the task may be handed to another coding assistant.',
   },
 };
 

@@ -8,12 +8,13 @@ const { MIN_WORDS } = require('../prefilter');
 const rows = fs.readFileSync(path.join(__dirname, 'corpus.jsonl'), 'utf8').split('\n').filter(Boolean).map(JSON.parse);
 
 test('the corpus is well formed', () => {
-  assert.equal(rows.length, 30);
+  assert.equal(rows.length, 33);
   for (const r of rows) {
     assert.ok(r.m.split(/\s+/).length >= MIN_WORDS, r.m);
-    if (r.retener) continue;
+    if (r.retener || r.contexto) continue;
     assert.ok(r.tipo in LADDERS, r.m);
     assert.ok(Number.isInteger(r.peso) && r.peso >= 1 && r.peso <= 5, r.m);
   }
-  assert.ok(rows.filter((r) => r.retener).length >= 8);
+  assert.ok(rows.filter((r) => r.retener).length >= 6);
+  assert.equal(rows.filter((r) => r.contexto).length, 3);
 });

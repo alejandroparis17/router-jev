@@ -21,6 +21,8 @@ const { decide } = require('./policy');
     lat.push(Date.now() - t0);
     if (!j) { noAnswer++; if (r.retener) leaks.push(`${r.m} (no answer from Jev)`); continue; }
     const d = decide(j);
+    // Context-dependent messages are delegated on purpose, but only with a self-contained brief.
+    if (r.contexto) { if (!d.context && d.agent !== 'session') leaks.push(`${r.m} (context not flagged)`); continue; }
     if (r.retener) { if (d.agent !== 'session') leaks.push(r.m); continue; }
     n++;
     if (j.tipo === r.tipo) tipoOk++;
