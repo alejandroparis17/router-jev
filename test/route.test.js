@@ -38,7 +38,7 @@ function setup({ status = 200, answers = ANSWERS, allow = true } = {}) {
       });
       const entries = () => (fs.existsSync(path.join(home, 'log.jsonl'))
         ? fs.readFileSync(path.join(home, 'log.jsonl'), 'utf8').split('\n').filter(Boolean).map(JSON.parse) : []);
-      resolve({ run, calls, repo, entries, close: () => server.close() });
+      resolve({ run, calls, repo, entries, home, close: () => server.close() });
     });
   });
 }
@@ -125,4 +125,33 @@ test('a task that depends on the conversation is still routed, flagged to need a
   const { out } = await s.run({ prompt: MESSAGE, cwd: s.repo });
   assert.match(out, /^\[router\] → codex-astra · .* · encargo autocontenido\n$/);
   assert.equal(s.entries()[0].depende, 0.9);
+});
+
+const ignored = (s) => s.entries().filter((e) => e.event === 'ignored');
+
+test('a recommendation nobody dispatched is logged as ignored by the next prompt, once', async (t) => {
+  const s = await setup(); t.after(s.close);
+  await s.run({ prompt: MESSAGE, cwd: s.repo });
+  const id = s.entries()[0].id;
+  await s.run({ prompt: 'sí', cwd: s.repo });
+  assert.deepEqual(ignored(s).map((e) => [e.of, e.agent]), [[id, 'codex-astra']]);
+  await s.run({ prompt: 'sí', cwd: s.repo });
+  assert.equal(ignored(s).length, 1);
+});
+
+test('a dispatch or a --record after the recommendation means it was followed', async (t) => {
+  for (const event of ['dispatch', 'used']) {
+    const s = await setup(); t.after(s.close);
+    await s.run({ prompt: MESSAGE, cwd: s.repo });
+    fs.appendFileSync(path.join(s.home, 'log.jsonl'), JSON.stringify({ ts: new Date().toISOString(), event, agent: 'codex-astra' }) + '\n');
+    await s.run({ prompt: 'sí', cwd: s.repo });
+    assert.equal(ignored(s).length, 0, event);
+  }
+});
+
+test('a task kept in the session recommends nothing to ignore', async (t) => {
+  const s = await setup({ answers: { ...ANSWERS, sensitive: { type: 'noul', noul: 0.9 } } }); t.after(s.close);
+  await s.run({ prompt: MESSAGE, cwd: s.repo });
+  await s.run({ prompt: 'sí', cwd: s.repo });
+  assert.equal(ignored(s).length, 0);
 });
