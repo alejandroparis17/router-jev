@@ -106,3 +106,9 @@ test('main keeps a 0600 original at 0600, creates new files 0600, and never echo
   assert.ok(msg.includes('settings.json') && msg.includes(bad) && /No se ha escrito nada/.test(msg), msg);
   assert.ok(!msg.includes('FAKESECRET') && !msg.includes('oops'), msg);
 });
+
+test('the section asks for a stated reason when a recommendation is not followed, and no --record when keeping the task', () => {
+  assert.match(SECTION, /dilo en una línea con el motivo/);
+  assert.doesNotMatch(SECTION, /quedarte la tarea, registra/);
+  assert.match(SECTION, /no registres nada/);
+});

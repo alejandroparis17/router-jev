@@ -20,7 +20,8 @@ Un hook añade a veces una línea \`[router] → <agente> · <tipo> · peso N �
 - \`revisa: X\`: al recibir el trabajo, pide esa revisión (\`codex-review\` es \`dispatch.js codex-review\`; \`claude-sonnet\` es un subagente Sonnet).
 - Si el agente falla o no cumple el criterio de hecho, sube a \`sube a: Y\` (máximo 2 subidas). Si no hay más, hazlo tú.
 - Si la persona dice "hazlo tú", no delegues. Nunca pongas secretos en un encargo.
-- Tras delegar con la herramienta Agent o quedarte la tarea, registra lo realmente usado: \`node ~/.claude/router/dispatch.js --record <agente>\`.
+- Si delegas con la herramienta Agent, registra el agente usado: \`node ~/.claude/router/dispatch.js --record <agente>\`. Si te quedas la tarea no registres nada: el hook anota solo las recomendaciones no seguidas.
+- Si no sigues una recomendación de delegar, dilo en una línea con el motivo (por ejemplo: "es investigación, no revisión").
 ${END}
 `;
 
