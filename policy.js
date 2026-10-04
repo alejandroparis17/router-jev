@@ -8,7 +8,8 @@ const MAX_DEPENDS = 0.4;
 
 // Ordered cheapest to most capable: [agent, heaviest weight it takes].
 const LADDERS = {
-  pregunta: [['claude-haiku', 3], ['claude-sonnet', 5]],
+  // a small question is answered in the session: a subagent costs more than the answer
+  pregunta: [['session', 3], ['claude-sonnet', 5]],
   implementar: [['claude-haiku', 1], ['codex-reserve', 3], ['codex-astra', 5]],
   bug: [['codex-reserve', 2], ['codex-astra', 5]],
   revision: [['codex-reserve', 3], ['codex-astra', 5]],
@@ -45,7 +46,7 @@ function decide(j) {
   const heavy = j.peso >= 4;
   return {
     agent,
-    why: 'ladder',
+    why: agent === 'session' ? 'simple' : 'ladder',
     // agy has none of our skills installed; naming one there would only confuse it.
     skills: family(agent) === 'agy' ? [] : SKILLS[j.tipo],
     reviewer: heavy ? (family(agent) === 'claude' ? 'codex-review' : 'claude-sonnet') : null,

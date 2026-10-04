@@ -26,7 +26,7 @@ test('each ladder picks the first rung that reaches the weight', () => {
     ['ui', 2, 'agy-flash'], ['ui', 5, 'codex-astra'],
     ['plan', 4, 'codex-astra'], ['plan', 5, 'claude-opus'],
     ['escribir', 2, 'agy-flash'], ['escribir', 4, 'agy-opus'],
-    ['pregunta', 3, 'claude-haiku'], ['pregunta', 4, 'claude-sonnet'],
+    ['pregunta', 1, 'session'], ['pregunta', 3, 'session'], ['pregunta', 4, 'claude-sonnet'],
     ['datos', 3, 'agy-flash'], ['datos', 4, 'codex-astra'],
     ['revision', 3, 'codex-reserve'], ['qa', 4, 'codex-astra'],
   ];
@@ -80,4 +80,10 @@ test('depending on the conversation never keeps a task in the session; it asks f
   assert.equal(d({ depende: NaN }).agent, 'codex-reserve');
   assert.equal(d({ depende: 0.9, sensible: 0.5 }).agent, 'session');
   assert.equal(d({ depende: 0.9, tipoProb: 0.3 }).context, true);
+});
+
+test('a small question stays in the session: a subagent costs more than answering', () => {
+  const r = d({ tipo: 'pregunta', peso: 2 });
+  assert.deepEqual([r.agent, r.why, r.reviewer], ['session', 'simple', null]);
+  assert.equal(d({ tipo: 'pregunta', peso: 2, sensible: 0.9 }).why, 'risk');
 });
