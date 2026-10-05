@@ -47,3 +47,8 @@ test('parseSince falls back to 7 days for a missing or invalid date', () => {
   assert.equal(parseSince('2026-10-03', now), '2026-10-03');
   for (const bad of [undefined, 'nope', '--other', '2026-13-45']) assert.equal(parseSince(bad, now), '2026-10-03', String(bad));
 });
+
+test('Claude Pro also counts followed claude-* recommendations', () => {
+  const r = summarize([c('k', 'claude-sonnet', 4), c('l', 'claude-sonnet', 4), { event: 'ignored', ts: '2026-10-03T11:00:00Z', of: 'l', agent: 'claude-sonnet' }], '2026-10-01');
+  assert.equal(r.byQuota.claude.count, 2); // l ignored + k followed
+});

@@ -33,7 +33,8 @@ function summarize(rows, sinceIso) {
   };
 
   const byQuota = { claude: { count: 0, minutes: 0 }, codex: { count: 0, minutes: 0 }, google: { count: 0, minutes: 0 } };
-  byQuota.claude.count = cls.filter((r) => r.agent === 'session').length + ignored;
+  byQuota.claude.count = cls.filter((r) => r.agent === 'session').length + ignored
+    + rec.filter((r) => fam(r.agent) === 'claude' && !ignoredIds.has(r.id)).length;
   for (const r of ev('dispatch')) {
     const q = byQuota[QUOTA[fam(r.agent)]];
     if (!q) continue;
