@@ -50,13 +50,11 @@ function down(family, now = Date.now()) {
   }
 }
 
+// A family out of quota is replaced by claude-sonnet (a claude-* agent is never replaced).
 function avoidDownAgent(d, j) {
   const fam = d.agent.split('-')[0];
   if ((fam !== 'codex' && fam !== 'agy') || !down(fam)) return d;
-  if (fam === 'codex' && !down('agy')) {
-    return { ...d, agent: 'agy-opus', skills: [], reviewer: j.peso >= 4 ? 'claude-sonnet' : null, up: null, fallbackFrom: d.agent };
-  }
-  return { agent: 'session', why: 'no-quota', skills: [], reviewer: null, up: null, context: d.context, fallbackFrom: d.agent };
+  return { agent: 'claude-sonnet', why: 'no-quota', skills: [], reviewer: null, up: null, context: d.context, fallbackFrom: d.agent };
 }
 
 function line(d, j) {

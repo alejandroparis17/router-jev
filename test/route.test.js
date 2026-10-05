@@ -156,7 +156,7 @@ test('a task kept in the session recommends nothing to ignore', async (t) => {
   assert.equal(ignored(s).length, 0);
 });
 
-test('out of quota: codex falls back to agy-opus, an expired mark is ignored, both down means the session', async (t) => {
+test('out of quota: codex falls back to claude-sonnet, an expired mark is ignored, a claude agent is never replaced', async (t) => {
   const mark = (home, o) => fs.writeFileSync(path.join(home, 'unavailable.json'), JSON.stringify(o));
   const future = new Date(Date.now() + 3600e3).toISOString();
   const past = new Date(Date.now() - 3600e3).toISOString();
@@ -164,9 +164,9 @@ test('out of quota: codex falls back to agy-opus, an expired mark is ignored, bo
   const a = await setup(); t.after(a.close);
   mark(a.home, { codex: future });
   const ra = await a.run({ prompt: MESSAGE, cwd: a.repo });
-  assert.match(ra.out, /^\[router\] → agy-opus · implementar · peso 4 · tipo 0\.90 · revisa: claude-sonnet\n$/);
-  assert.equal(a.entries().at(-1).fallbackFrom, 'codex-astra');
-  assert.deepEqual([a.entries().at(-1).agent, a.entries().at(-1).reviewer], ['agy-opus', 'claude-sonnet']);
+  assert.match(ra.out, /^\[router\] → claude-sonnet · implementar · peso 4 · tipo 0\.90\n$/);
+  const e = a.entries().at(-1);
+  assert.deepEqual([e.agent, e.reviewer, e.fallbackFrom], ['claude-sonnet', null, 'codex-astra']);
 
   const b = await setup(); t.after(b.close);
   mark(b.home, { codex: past });
@@ -175,7 +175,14 @@ test('out of quota: codex falls back to agy-opus, an expired mark is ignored, bo
 
   const c = await setup(); t.after(c.close);
   mark(c.home, { codex: future, agy: future });
-  assert.match((await c.run({ prompt: MESSAGE, cwd: c.repo })).out, /^\[router\] → sesión actual \(no-quota\) · implementar · peso 4\n$/);
+  assert.match((await c.run({ prompt: MESSAGE, cwd: c.repo })).out, /→ claude-sonnet/);
+
+  // a claude-* decision (unsure type) is left alone even with everything marked
+  const u = await setup({ answers: { ...ANSWERS, kind: { type: 'choice', choice: 'implementar', probabilities: { implementar: 0.3 }, confidence: 0.8 } } }); t.after(u.close);
+  mark(u.home, { codex: future, agy: future });
+  assert.equal(u.entries().at(-1)?.fallbackFrom, undefined);
+  assert.match((await u.run({ prompt: MESSAGE, cwd: u.repo })).out, /→ claude-sonnet/);
+  assert.equal(u.entries().at(-1).fallbackFrom, undefined);
 });
 
 test('a garbage unavailable.json is ignored: routing is unchanged and the hook exits 0', async (t) => {
@@ -192,7 +199,7 @@ test('the fallback keeps the self-contained brief flag and names no skills or ne
   const s = await setup({ answers: { ...ANSWERS, depends: { type: 'noul', noul: 0.9 } } }); t.after(s.close);
   fs.writeFileSync(path.join(s.home, 'unavailable.json'), JSON.stringify({ codex: new Date(Date.now() + 3600e3).toISOString() }));
   const { out } = await s.run({ prompt: MESSAGE, cwd: s.repo });
-  assert.match(out, /→ agy-opus/);
+  assert.match(out, /→ claude-sonnet/);
   assert.doesNotMatch(out, /skills:|sube a:/);
   assert.match(out, /encargo autocontenido/);
 });
