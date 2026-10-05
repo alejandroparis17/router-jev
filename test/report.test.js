@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { summarize } = require('../report');
+const { summarize, parseSince } = require('../report');
 
 const c = (id, agent, peso, ts = '2026-10-03T10:00:00Z', extra = {}) => ({ id, ts, tipo: 'bug', peso, agent, why: 'ladder', ms: 100, ...extra });
 const rows = [
@@ -12,7 +12,6 @@ const rows = [
   { id: 's', ts: '2026-10-03T10:00:00Z', skip: 'short' },
   { event: 'dispatch', ts: '2026-10-03T10:01:00Z', agent: 'codex-astra', ok: true, ms: 120000 },
   { event: 'dispatch', ts: '2026-10-03T10:02:00Z', agent: 'agy-flash', ok: false, ms: 60000 },
-  { event: 'used', ts: '2026-10-03T10:03:00Z', agent: 'claude-sonnet' },
   { event: 'ignored', ts: '2026-10-03T10:04:00Z', of: 'c', agent: 'claude-sonnet' },
   { event: 'dispatch', ts: '2026-09-01T10:00:00Z', agent: 'codex-astra', ok: true, ms: 999999 },
 ];
@@ -21,14 +20,14 @@ test('summarize counts classified, followed, ignored and quota; rows before sinc
   const r = summarize(rows, '2026-10-01');
   assert.equal(r.classified, 4);
   assert.equal(r.recommended, 3);
-  assert.equal(r.followed, 3);
+  assert.equal(r.followed, 2);
   assert.equal(r.ignored, 1);
-  assert.equal(r.followRate, 100);
+  assert.equal(r.followRate, 67);
   assert.equal(r.skipped.short, 1);
   assert.deepEqual([r.byQuota.codex.count, r.byQuota.codex.minutes], [1, 2]);
   assert.deepEqual([r.byQuota.google.count, r.byQuota.google.minutes], [1, 1]);
-  // session decision (d) + ignored (c) + used claude-sonnet
-  assert.equal(r.byQuota.claude.count, 3);
+  // session decision (d) + ignored (c)
+  assert.equal(r.byQuota.claude.count, 2);
   assert.equal(r.failed, 1);
   assert.equal(r.avgMs, 150);
 });
@@ -36,4 +35,15 @@ test('summarize counts classified, followed, ignored and quota; rows before sinc
 test('summarize on nothing does not divide by zero', () => {
   const r = summarize([], '2026-10-01');
   assert.deepEqual([r.classified, r.recommended, r.followRate], [0, 0, 0]);
+});
+
+test('an ignored event whose recommendation is outside the period is not counted', () => {
+  const r = summarize([c('x', 'codex-astra', 3), { event: 'ignored', ts: '2026-10-03T11:00:00Z', of: 'gone', agent: 'codex-astra' }], '2026-10-01');
+  assert.deepEqual([r.recommended, r.ignored, r.followed], [1, 0, 1]);
+});
+
+test('parseSince falls back to 7 days for a missing or invalid date', () => {
+  const now = Date.parse('2026-10-10T12:00:00Z');
+  assert.equal(parseSince('2026-10-03', now), '2026-10-03');
+  for (const bad of [undefined, 'nope', '--other', '2026-13-45']) assert.equal(parseSince(bad, now), '2026-10-03', String(bad));
 });

@@ -14,9 +14,10 @@ function summarize(rows, sinceIso) {
   const cls = rs.filter((r) => r.tipo && !r.event);
   const ev = (e) => rs.filter((r) => r.event === e);
   const rec = cls.filter((r) => r.agent !== 'session');
-  const ignoredRows = ev('ignored');
-  const ignoredIds = new Set(ignoredRows.map((r) => r.of));
-  const followed = ev('dispatch').length + ev('used').length;
+  const ignoredIds = new Set(ev('ignored').map((r) => r.of));
+  // one definition: a recommendation in the period is followed unless a later 'ignored' names it
+  const ignored = rec.filter((r) => ignoredIds.has(r.id)).length;
+  const followed = rec.length - ignored;
 
   const count = (list, key) => list.reduce((m, r) => ((m[key(r)] = (m[key(r)] || 0) + 1), m), {});
   // follow rate per group: a recommendation is followed unless a later 'ignored' names it.
@@ -32,8 +33,7 @@ function summarize(rows, sinceIso) {
   };
 
   const byQuota = { claude: { count: 0, minutes: 0 }, codex: { count: 0, minutes: 0 }, google: { count: 0, minutes: 0 } };
-  byQuota.claude.count = cls.filter((r) => r.agent === 'session').length + ignoredRows.length
-    + ev('used').filter((r) => fam(r.agent) === 'claude').length;
+  byQuota.claude.count = cls.filter((r) => r.agent === 'session').length + ignored;
   for (const r of ev('dispatch')) {
     const q = byQuota[QUOTA[fam(r.agent)]];
     if (!q) continue;
@@ -48,7 +48,7 @@ function summarize(rows, sinceIso) {
     decisions: count(cls, (r) => `${r.agent}/${r.why}`),
     recommended: rec.length,
     followed,
-    ignored: ignoredRows.length,
+    ignored,
     followRate: pct(followed, rec.length),
     byFamily: rate((r) => fam(r.agent)),
     byWeight: rate((r) => r.peso),
@@ -56,6 +56,12 @@ function summarize(rows, sinceIso) {
     failed: ev('dispatch').filter((r) => r.ok === false).length,
     avgMs: ms.length ? Math.round(ms.reduce((a, b) => a + b, 0) / ms.length) : 0,
   };
+}
+
+// A missing or invalid --since falls back to the last 7 days.
+function parseSince(arg, now = Date.now()) {
+  const ok = /^\d{4}-\d{2}-\d{2}$/.test(arg || '') && !Number.isNaN(Date.parse(arg));
+  return ok ? arg : new Date(now - 7 * 864e5).toISOString().slice(0, 10);
 }
 
 function print(s) {
@@ -79,11 +85,11 @@ function print(s) {
 
 if (require.main === module) {
   const i = process.argv.indexOf('--since');
-  const since = i > 0 ? process.argv[i + 1] : new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+  const since = parseSince(i > 0 ? process.argv[i + 1] : undefined);
   let rows = [];
   try {
     rows = fs.readFileSync(log.FILE, 'utf8').split('\n').flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
   } catch { /* no log yet */ }
   print(summarize(rows, since));
 }
-module.exports = { summarize };
+module.exports = { summarize, parseSince };
