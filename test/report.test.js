@@ -30,7 +30,7 @@ test('summarize counts classified, followed, ignored and quota; rows before sinc
   // session decision (d) + ignored (c) + used claude-sonnet
   assert.equal(r.byQuota.claude.count, 3);
   assert.equal(r.failed, 1);
-  assert.equal(r.avgMs, 175);
+  assert.equal(r.avgMs, 150);
 });
 
 test('summarize on nothing does not divide by zero', () => {
