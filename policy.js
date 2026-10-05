@@ -6,6 +6,7 @@ const MIN_TYPE = 0.6;
 const MAX_RISK = 0.3;
 const MAX_DEPENDS = 0.4;
 
+// agy returns text but does not edit files, so only 'escribir' (text out) goes there.
 // Ordered cheapest to most capable: [agent, heaviest weight it takes].
 const LADDERS = {
   // a small question is answered in the session: a subagent costs more than the answer
@@ -13,10 +14,10 @@ const LADDERS = {
   implementar: [['codex-reserve', 3], ['codex-astra', 5]],
   bug: [['codex-reserve', 2], ['codex-astra', 5]],
   revision: [['codex-reserve', 3], ['codex-astra', 5]],
-  ui: [['agy-flash', 2], ['codex-astra', 5]],
+  ui: [['codex-reserve', 2], ['codex-astra', 5]],
   qa: [['codex-reserve', 3], ['codex-astra', 5]],
   escribir: [['agy-flash', 2], ['agy-opus', 5]],
-  datos: [['agy-flash', 3], ['codex-astra', 5]],
+  datos: [['codex-reserve', 3], ['codex-astra', 5]],
   plan: [['codex-astra', 4], ['claude-opus', 5]],
 };
 

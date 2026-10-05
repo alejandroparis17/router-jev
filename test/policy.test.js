@@ -23,11 +23,11 @@ test('each ladder picks the first rung that reaches the weight', () => {
   const cases = [
     ['implementar', 2, 'codex-reserve'], ['implementar', 3, 'codex-reserve'], ['implementar', 4, 'codex-astra'],
     ['bug', 2, 'codex-reserve'], ['bug', 3, 'codex-astra'],
-    ['ui', 2, 'agy-flash'], ['ui', 5, 'codex-astra'],
+    ['ui', 2, 'codex-reserve'], ['ui', 5, 'codex-astra'],
     ['plan', 4, 'codex-astra'], ['plan', 5, 'claude-opus'],
     ['escribir', 2, 'agy-flash'], ['escribir', 4, 'agy-opus'],
     ['pregunta', 1, 'session'], ['pregunta', 3, 'session'], ['pregunta', 4, 'claude-sonnet'],
-    ['datos', 3, 'agy-flash'], ['datos', 4, 'codex-astra'],
+    ['datos', 3, 'codex-reserve'], ['datos', 4, 'codex-astra'],
     ['revision', 3, 'codex-reserve'], ['qa', 4, 'codex-astra'],
   ];
   for (const [tipo, peso, agent] of cases) assert.equal(d({ tipo, peso }).agent, agent, `${tipo}/${peso}`);
@@ -43,7 +43,8 @@ test('reviewer: from weight 4, the other family; agy and codex are reviewed by s
 
 test('skills are named only for agents that have them; up is the next rung', () => {
   assert.deepEqual(d({ peso: 3 }).skills, ['test-driven-development']);
-  assert.deepEqual(d({ tipo: 'ui', peso: 2 }).skills, []);
+  assert.deepEqual(d({ tipo: 'ui', peso: 2 }).skills, ['frontend-design']);
+  assert.deepEqual(d({ tipo: 'escribir', peso: 2 }).skills, []);
   assert.equal(d({ tipo: 'bug', peso: 2 }).up, 'codex-astra');
   assert.equal(d({ tipo: 'bug', peso: 3 }).up, null);
 });
