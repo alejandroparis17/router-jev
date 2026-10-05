@@ -166,6 +166,7 @@ test('out of quota: codex falls back to agy-opus, an expired mark is ignored, bo
   const ra = await a.run({ prompt: MESSAGE, cwd: a.repo });
   assert.match(ra.out, /^\[router\] → agy-opus · implementar · peso 4 · tipo 0\.90 · revisa: claude-sonnet\n$/);
   assert.equal(a.entries().at(-1).fallbackFrom, 'codex-astra');
+  assert.deepEqual([a.entries().at(-1).agent, a.entries().at(-1).reviewer], ['agy-opus', 'claude-sonnet']);
 
   const b = await setup(); t.after(b.close);
   mark(b.home, { codex: past });
@@ -175,4 +176,23 @@ test('out of quota: codex falls back to agy-opus, an expired mark is ignored, bo
   const c = await setup(); t.after(c.close);
   mark(c.home, { codex: future, agy: future });
   assert.match((await c.run({ prompt: MESSAGE, cwd: c.repo })).out, /^\[router\] → sesión actual \(no-quota\) · implementar · peso 4\n$/);
+});
+
+test('a garbage unavailable.json is ignored: routing is unchanged and the hook exits 0', async (t) => {
+  for (const junk of ['not json', '[1]', 'null', '{"codex":"nope"}', 'x'.repeat(5000)]) {
+    const s = await setup(); t.after(s.close);
+    fs.writeFileSync(path.join(s.home, 'unavailable.json'), junk);
+    const { out, code } = await s.run({ prompt: MESSAGE, cwd: s.repo });
+    assert.equal(code, 0, junk.slice(0, 20));
+    assert.match(out, /→ codex-astra/, junk.slice(0, 20));
+  }
+});
+
+test('the fallback keeps the self-contained brief flag and names no skills or next rung', async (t) => {
+  const s = await setup({ answers: { ...ANSWERS, depends: { type: 'noul', noul: 0.9 } } }); t.after(s.close);
+  fs.writeFileSync(path.join(s.home, 'unavailable.json'), JSON.stringify({ codex: new Date(Date.now() + 3600e3).toISOString() }));
+  const { out } = await s.run({ prompt: MESSAGE, cwd: s.repo });
+  assert.match(out, /→ agy-opus/);
+  assert.doesNotMatch(out, /skills:|sube a:/);
+  assert.match(out, /encargo autocontenido/);
 });

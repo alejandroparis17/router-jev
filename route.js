@@ -42,7 +42,9 @@ function switchedOff(repo) {
 // Missing or unparseable = all available; expired marks are ignored.
 function down(family, now = Date.now()) {
   try {
-    return Date.parse(JSON.parse(fs.readFileSync(path.join(log.HOME, 'unavailable.json'), 'utf8'))[family]) > now;
+    const file = path.join(log.HOME, 'unavailable.json');
+    if (fs.statSync(file).size > 4096) return false; // not ours
+    return Date.parse(JSON.parse(fs.readFileSync(file, 'utf8'))[family]) > now;
   } catch {
     return false;
   }
