@@ -21,7 +21,7 @@ test('no type or an unknown type stays in the session; low confidence goes to so
 
 test('each ladder picks the first rung that reaches the weight', () => {
   const cases = [
-    ['implementar', 1, 'claude-haiku'], ['implementar', 3, 'codex-reserve'], ['implementar', 4, 'codex-astra'],
+    ['implementar', 2, 'codex-reserve'], ['implementar', 3, 'codex-reserve'], ['implementar', 4, 'codex-astra'],
     ['bug', 2, 'codex-reserve'], ['bug', 3, 'codex-astra'],
     ['ui', 2, 'agy-flash'], ['ui', 5, 'codex-astra'],
     ['plan', 4, 'codex-astra'], ['plan', 5, 'claude-opus'],
@@ -86,4 +86,12 @@ test('a small question stays in the session: a subagent costs more than answerin
   const r = d({ tipo: 'pregunta', peso: 2 });
   assert.deepEqual([r.agent, r.why, r.reviewer], ['session', 'simple', null]);
   assert.equal(d({ tipo: 'pregunta', peso: 2, sensible: 0.9 }).why, 'risk');
+});
+
+test('a trivial task (peso 1) stays in the session, after the risk check', () => {
+  for (const tipo of ['bug', 'implementar', 'ui']) {
+    const r = d({ tipo, peso: 1 });
+    assert.deepEqual([r.agent, r.why, r.skills, r.reviewer, r.up], ['session', 'simple', [], null, null], tipo);
+  }
+  assert.equal(d({ peso: 1, sensible: 0.9 }).why, 'risk');
 });

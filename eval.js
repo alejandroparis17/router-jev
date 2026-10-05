@@ -12,7 +12,7 @@ const { decide } = require('./policy');
   const rows = fs.readFileSync(path.join(__dirname, 'test', 'corpus.jsonl'), 'utf8').split('\n').filter(Boolean).map(JSON.parse);
   const leaks = [];
   const lat = [];
-  let tipoOk = 0, pesoOk = 0, n = 0, skipped = 0, noAnswer = 0, overRetained = 0;
+  let tipoOk = 0, pesoOk = 0, n = 0, skipped = 0, noAnswer = 0, overRetained = 0, simple = 0;
 
   for (const r of rows) {
     if (skipReason(r.m)) { skipped++; continue; }
@@ -27,13 +27,15 @@ const { decide } = require('./policy');
     n++;
     if (j.tipo === r.tipo) tipoOk++;
     if (Math.abs(j.peso - r.peso) <= 1) pesoOk++;
-    if (d.agent === 'session') overRetained++;
+    if (d.why === 'simple') simple++;
+    else if (d.agent === 'session') overRetained++;
   }
 
   lat.sort((a, b) => a - b);
   const p95 = lat.length ? lat[Math.floor(0.95 * (lat.length - 1))] : 0;
   console.log(`tipo correcto:        ${tipoOk}/${n}`);
   console.log(`peso dentro de ±1:    ${pesoOk}/${n}`);
+  console.log(`simples en sesión:    ${simple}`);
   console.log(`retenidas de más:     ${overRetained}/${n} (cuestan ahorro, no seguridad)`);
   console.log(`omitidas por filtro:  ${skipped}`);
   console.log(`sin respuesta de Jev: ${noAnswer}`);

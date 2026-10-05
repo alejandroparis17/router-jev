@@ -10,7 +10,7 @@ const MAX_DEPENDS = 0.4;
 const LADDERS = {
   // a small question is answered in the session: a subagent costs more than the answer
   pregunta: [['session', 3], ['claude-sonnet', 5]],
-  implementar: [['claude-haiku', 1], ['codex-reserve', 3], ['codex-astra', 5]],
+  implementar: [['codex-reserve', 3], ['codex-astra', 5]],
   bug: [['codex-reserve', 2], ['codex-astra', 5]],
   revision: [['codex-reserve', 3], ['codex-astra', 5]],
   ui: [['agy-flash', 2], ['codex-astra', 5]],
@@ -36,6 +36,7 @@ function decide(j) {
   // Fail closed: undefined/NaN in risk fields stay in session.
   if (!(j.sensible < MAX_RISK) || !(j.irreversible < MAX_RISK)) return session('risk');
   if (j.tipo === 'none' || !Object.hasOwn(LADDERS, j.tipo)) return session('none');
+  if (j.peso === 1) return { ...session('simple'), context }; // a one-line job costs less than its brief
   if (j.tipoProb < MIN_TYPE) return { agent: 'claude-sonnet', why: 'unsure', skills: [], reviewer: j.peso >= 4 ? 'codex-review' : null, up: null, context };
 
   const ladder = LADDERS[j.tipo];
