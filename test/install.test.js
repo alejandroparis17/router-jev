@@ -116,5 +116,6 @@ test('the section asks for a stated reason when a recommendation is not followed
 test('the section makes delegation the default and explains unavailable agents', () => {
   assert.match(SECTION, /delegar es lo predeterminado/);
   assert.match(SECTION, /dilo en una línea con el motivo/);
-  assert.match(SECTION, /unavailable: true/);
+  assert.match(SECTION, /unavailable: true.*recomendará claude-sonnet; usa ese o hazlo tú/);
+  assert.match(SECTION, /devuelven el resultado como texto \(no editan archivos\); guárdalo tú y revísalo/);
 });
