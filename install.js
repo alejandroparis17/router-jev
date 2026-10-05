@@ -15,10 +15,11 @@ Un hook añade a veces una línea \`[router] → <agente> · <tipo> · peso N �
 
 - \`sesión actual\`: sigue tú; no delegues.
 - \`claude-haiku\`, \`claude-sonnet\`, \`claude-opus\`: lanza un subagente con la herramienta Agent y ese \`model\`.
-- \`codex-reserve\`, \`codex-astra\`, \`agy-flash\`, \`agy-opus\`: escribe un encargo (objetivo, zona del repo, criterio de hecho comprobable y las skills que se nombren) y ejecuta \`node ~/.claude/router/dispatch.js <agente> --cwd <repo>\` con el encargo por stdin. Lee el JSON que devuelve, revisa el trabajo tú; haz commit solo si la persona lo pidió.
+- \`codex-reserve\`, \`codex-astra\`, \`agy-flash\`, \`agy-opus\`: **delegar es lo predeterminado.** Escribe el encargo (objetivo, zona del repo, lo decidido en la conversación, criterio de hecho comprobable y las skills que se nombren) y ejecuta \`node ~/.claude/router/dispatch.js <agente> --cwd <repo>\` con el encargo por stdin. Mientras trabaja, no hagas tú la misma tarea. Lee el JSON que devuelve, revisa el resultado y haz commit solo si la persona lo pidió. Solo te la quedas si la persona dijo "hazlo tú", si ya la tienes a medio hacer en esta sesión, o si no puedes escribir un encargo completo; en ese caso dilo en una línea con el motivo.
 - \`encargo autocontenido\`: la tarea depende de lo hablado antes. El agente delegado no tiene esa conversación, y tú sí: escribe en el encargo todo lo que necesita (qué se decidió, qué archivos, qué ya existe, criterio de hecho). Si no puedes dejarlo completo, hazlo tú.
 - \`revisa: X\`: al recibir el trabajo, pide esa revisión (\`codex-review\` es \`dispatch.js codex-review\`; \`claude-sonnet\` es un subagente Sonnet).
 - Si el agente falla o no cumple el criterio de hecho, sube a \`sube a: Y\` (máximo 2 subidas). Si no hay más, hazlo tú.
+- Si \`dispatch.js\` devuelve \`unavailable: true\`, ese agente se quedó sin cuota: el router lo evitará unas horas; usa el siguiente agente o hazlo tú.
 - Si la persona dice "hazlo tú", no delegues. Nunca pongas secretos en un encargo.
 - Si delegas con la herramienta Agent, registra el agente usado: \`node ~/.claude/router/dispatch.js --record <agente>\`. Si te quedas la tarea no registres nada: el hook anota solo las recomendaciones no seguidas.
 - Si no sigues una recomendación de delegar, dilo en una línea con el motivo (por ejemplo: "es investigación, no revisión").

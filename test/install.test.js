@@ -112,3 +112,9 @@ test('the section asks for a stated reason when a recommendation is not followed
   assert.doesNotMatch(SECTION, /quedarte la tarea, registra/);
   assert.match(SECTION, /no registres nada/);
 });
+
+test('the section makes delegation the default and explains unavailable agents', () => {
+  assert.match(SECTION, /delegar es lo predeterminado/);
+  assert.match(SECTION, /dilo en una línea con el motivo/);
+  assert.match(SECTION, /unavailable: true/);
+});
