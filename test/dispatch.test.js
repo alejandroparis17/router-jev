@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { AGENTS, run, minimalEnv, FOOTER } = require('../dispatch');
+const { AGENTS, run, noteQuota, minimalEnv, FOOTER } = require('../dispatch');
 
 const node = (script, stdin) => ({ cmd: process.execPath, args: ['-e', script], stdin });
 
@@ -120,4 +120,22 @@ test('timeout: a child that exits on TERM but leaves a group member behind still
   // gone at resolve time (allow 500 ms for init to reap the killed zombie); the old code resolved ~2 s before the kill
   for (let i = 0; i < 10; i++) { try { process.kill(-r.pgid, 0); } catch { break; } await new Promise((x) => setTimeout(x, 50)); }
   assert.throws(() => process.kill(-r.pgid, 0)); // ESRCH, or EPERM for a zombie on macOS
+});
+
+test('an agent that fails out of credits marks its family unavailable for 6 hours, merging with other marks', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'router-home-'));
+  const file = path.join(home, 'unavailable.json');
+  fs.writeFileSync(file, JSON.stringify({ agy: '2030-01-01T00:00:00.000Z' }));
+  const r = await run(node("console.error('Your workspace is out of credits'); process.exit(1)", false), '', {});
+  const now = Date.parse('2026-10-04T10:00:00Z');
+  assert.equal(noteQuota('codex-astra', r, home, now), true);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { agy: '2030-01-01T00:00:00.000Z', codex: '2026-10-04T16:00:00.000Z' });
+  assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+});
+
+test('other failures and successes mark nothing', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'router-home-'));
+  assert.equal(noteQuota('codex-astra', { ok: false, err: 'syntax error', out: '' }, home), false);
+  assert.equal(noteQuota('codex-astra', { ok: true, err: 'quota', out: '' }, home), false);
+  assert.ok(!fs.existsSync(path.join(home, 'unavailable.json')));
 });

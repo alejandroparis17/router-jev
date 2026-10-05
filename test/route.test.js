@@ -155,3 +155,24 @@ test('a task kept in the session recommends nothing to ignore', async (t) => {
   await s.run({ prompt: 'sí', cwd: s.repo });
   assert.equal(ignored(s).length, 0);
 });
+
+test('out of quota: codex falls back to agy-opus, an expired mark is ignored, both down means the session', async (t) => {
+  const mark = (home, o) => fs.writeFileSync(path.join(home, 'unavailable.json'), JSON.stringify(o));
+  const future = new Date(Date.now() + 3600e3).toISOString();
+  const past = new Date(Date.now() - 3600e3).toISOString();
+
+  const a = await setup(); t.after(a.close);
+  mark(a.home, { codex: future });
+  const ra = await a.run({ prompt: MESSAGE, cwd: a.repo });
+  assert.match(ra.out, /^\[router\] → agy-opus · implementar · peso 4 · tipo 0\.90 · revisa: claude-sonnet\n$/);
+  assert.equal(a.entries().at(-1).fallbackFrom, 'codex-astra');
+
+  const b = await setup(); t.after(b.close);
+  mark(b.home, { codex: past });
+  assert.match((await b.run({ prompt: MESSAGE, cwd: b.repo })).out, /→ codex-astra/);
+  assert.equal(b.entries().at(-1).fallbackFrom, undefined);
+
+  const c = await setup(); t.after(c.close);
+  mark(c.home, { codex: future, agy: future });
+  assert.match((await c.run({ prompt: MESSAGE, cwd: c.repo })).out, /^\[router\] → sesión actual \(no-quota\) · implementar · peso 4\n$/);
+});

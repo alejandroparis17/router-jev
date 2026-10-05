@@ -38,6 +38,25 @@ function switchedOff(repo) {
   }
 }
 
+// dispatch.js marks a family (codex/agy) out of quota in unavailable.json until a time.
+// Missing or unparseable = all available; expired marks are ignored.
+function down(family, now = Date.now()) {
+  try {
+    return Date.parse(JSON.parse(fs.readFileSync(path.join(log.HOME, 'unavailable.json'), 'utf8'))[family]) > now;
+  } catch {
+    return false;
+  }
+}
+
+function avoidDownAgent(d, j) {
+  const fam = d.agent.split('-')[0];
+  if ((fam !== 'codex' && fam !== 'agy') || !down(fam)) return d;
+  if (fam === 'codex' && !down('agy')) {
+    return { ...d, agent: 'agy-opus', skills: [], reviewer: j.peso >= 4 ? 'claude-sonnet' : null, up: null, fallbackFrom: d.agent };
+  }
+  return { agent: 'session', why: 'no-quota', skills: [], reviewer: null, up: null, context: d.context, fallbackFrom: d.agent };
+}
+
 function line(d, j) {
   if (d.agent === 'session') return `[router] → sesión actual (${d.why}) · ${j.tipo} · peso ${j.peso}`;
   const bits = [`[router] → ${d.agent}`, j.tipo, `peso ${j.peso}`, `tipo ${j.tipoProb.toFixed(2)}`];
@@ -89,8 +108,8 @@ async function main() {
   const j = await classify(prompt);
   if (!j) return log.append({ ...entry, skip: 'jev-unavailable', ms: Date.now() - t0 });
 
-  const d = decide(j);
-  log.append({ ...entry, ...j, agent: d.agent, why: d.why, reviewer: d.reviewer, ms: Date.now() - t0 });
+  const d = avoidDownAgent(decide(j), j);
+  log.append({ ...entry, ...j, agent: d.agent, why: d.why, reviewer: d.reviewer, ...(d.fallbackFrom && { fallbackFrom: d.fallbackFrom }), ms: Date.now() - t0 });
   process.stdout.write(line(d, j) + '\n');
 }
 
