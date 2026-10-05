@@ -164,3 +164,9 @@ test('noteQuota replaces a non-object unavailable.json and never throws', () => 
   fs.writeFileSync(blocker, '');
   assert.equal(noteQuota('codex-astra', hit, path.join(blocker, 'sub')), false);
 });
+
+test('agy briefs say they cannot edit files; codex briefs do not', () => {
+  const { withFooter } = require('../dispatch');
+  assert.match(withFooter('agy-opus', 'hola'), /You cannot edit files in this mode\. Return the complete result \(the full text or the full code\) in your reply; the caller will save it\.\n\nDo not run git commit/);
+  assert.equal(withFooter('codex-astra', 'hola'), 'hola' + FOOTER);
+});
