@@ -139,3 +139,28 @@ test('other failures and successes mark nothing', () => {
   assert.equal(noteQuota('codex-astra', { ok: true, err: 'quota', out: '' }, home), false);
   assert.ok(!fs.existsSync(path.join(home, 'unavailable.json')));
 });
+
+test('noteQuota is strict: only a short, quota-shaped stderr marks', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'router-home-'));
+  const file = path.join(home, 'unavailable.json');
+  assert.equal(noteQuota('codex-astra', { ok: false, err: '', out: 'test failed: quota 429' }, home), false);
+  assert.equal(noteQuota('codex-astra', { ok: false, err: '... line 14290 ...', out: '' }, home), false);
+  assert.equal(noteQuota('codex-astra', { ok: false, err: 'x', out: 'out of credits' + ' '.repeat(300) }, home), false);
+  assert.ok(!fs.existsSync(file));
+  assert.equal(noteQuota('codex-astra', { ok: false, err: 'ERROR: Your workspace is out of credits.', out: '' }, home), true);
+  assert.ok(JSON.parse(fs.readFileSync(file, 'utf8')).codex);
+});
+
+test('noteQuota replaces a non-object unavailable.json and never throws', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'router-home-'));
+  const file = path.join(home, 'unavailable.json');
+  const hit = { ok: false, err: 'out of credits', out: '' };
+  for (const junk of ['[1]', '"x"', 'null', 'not json']) {
+    fs.writeFileSync(file, junk);
+    assert.equal(noteQuota('agy-opus', hit, home), true, junk);
+    assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(file, 'utf8'))), ['agy'], junk);
+  }
+  const blocker = path.join(home, 'file');
+  fs.writeFileSync(blocker, '');
+  assert.equal(noteQuota('codex-astra', hit, path.join(blocker, 'sub')), false);
+});
