@@ -177,8 +177,8 @@ test('out of quota: codex falls back to claude-sonnet, an expired mark is ignore
   mark(c.home, { codex: future, agy: future });
   assert.match((await c.run({ prompt: MESSAGE, cwd: c.repo })).out, /→ claude-sonnet/);
 
-  // a claude-* decision (unsure type) is left alone even with everything marked
-  const u = await setup({ answers: { ...ANSWERS, kind: { type: 'choice', choice: 'implementar', probabilities: { implementar: 0.3 }, confidence: 0.8 } } }); t.after(u.close);
+  // a claude-* decision (a heavy question goes to claude-sonnet) is left alone even with everything marked
+  const u = await setup({ answers: { ...ANSWERS, kind: { type: 'choice', choice: 'pregunta', probabilities: { pregunta: 0.9 }, confidence: 0.8 } } }); t.after(u.close);
   mark(u.home, { codex: future, agy: future });
   assert.equal(u.entries().at(-1)?.fallbackFrom, undefined);
   assert.match((await u.run({ prompt: MESSAGE, cwd: u.repo })).out, /→ claude-sonnet/);

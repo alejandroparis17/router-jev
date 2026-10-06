@@ -15,7 +15,7 @@ test('exceptions come first and delegate nothing', () => {
 test('no type or an unknown type stays in the session; low confidence goes to sonnet', () => {
   assert.deepEqual([d({ tipo: 'none' }).agent, d({ tipo: 'none' }).why], ['session', 'none']);
   assert.equal(d({ tipo: 'inventado' }).agent, 'session');
-  assert.deepEqual([d({ tipoProb: 0.59 }).agent, d({ tipoProb: 0.59 }).why], ['claude-sonnet', 'unsure']);
+  assert.deepEqual([d({ tipoProb: 0.59 }).agent, d({ tipoProb: 0.59 }).why], ['session', 'unsure']);
   assert.equal(d({ tipoProb: 0.6 }).why, 'ladder');
 });
 
@@ -67,10 +67,9 @@ test('undefined or NaN in risk fields keep the task in session (fail closed)', (
   assert.equal(d({ irreversible: undefined }).agent, 'session');
 });
 
-test('the unsure fallback gets a cross-family reviewer only when heavy', () => {
-  assert.equal(d({ tipoProb: 0.59, peso: 5 }).reviewer, 'codex-review');
-  assert.equal(d({ tipoProb: 0.59, peso: 2 }).reviewer, null);
-  assert.equal(d({ tipoProb: 0.59, peso: 5 }).why, 'unsure');
+test('an unsure type stays in the session: a Sonnet subagent for an ambiguous task was ignored 6 of 7 times', () => {
+  assert.deepEqual([d({ tipoProb: 0.59, peso: 5 }).agent, d({ tipoProb: 0.59, peso: 5 }).why, d({ tipoProb: 0.59, peso: 5 }).reviewer], ['session', 'unsure', null]);
+  assert.equal(d({ tipoProb: 0.59, sensible: 0.9 }).why, 'risk');
 });
 
 test('depending on the conversation never keeps a task in the session; it asks for a self-contained brief', () => {
@@ -80,7 +79,7 @@ test('depending on the conversation never keeps a task in the session; it asks f
   assert.equal(d({ depende: undefined }).context, true);
   assert.equal(d({ depende: NaN }).agent, 'codex-reserve');
   assert.equal(d({ depende: 0.9, sensible: 0.5 }).agent, 'session');
-  assert.equal(d({ depende: 0.9, tipoProb: 0.3 }).context, true);
+  assert.equal(d({ depende: 0.9, tipoProb: 0.3 }).agent, 'session'); // unsure stays here: no brief to write
 });
 
 test('a small question stays in the session: a subagent costs more than answering', () => {

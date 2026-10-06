@@ -38,7 +38,8 @@ function decide(j) {
   if (!(j.sensible < MAX_RISK) || !(j.irreversible < MAX_RISK)) return session('risk');
   if (j.tipo === 'none' || !Object.hasOwn(LADDERS, j.tipo)) return session('none');
   if (j.peso === 1) return { ...session('simple'), context }; // a one-line job costs less than its brief
-  if (j.tipoProb < MIN_TYPE) return { agent: 'claude-sonnet', why: 'unsure', skills: [], reviewer: j.peso >= 4 ? 'codex-review' : null, up: null, context };
+  // An ambiguous task stays here: a Sonnet subagent for it was ignored 6 of 7 times in real use.
+  if (j.tipoProb < MIN_TYPE) return session('unsure');
 
   const ladder = LADDERS[j.tipo];
   let i = ladder.findIndex(([, max]) => j.peso <= max);
