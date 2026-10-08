@@ -203,3 +203,11 @@ test('the fallback keeps the self-contained brief flag and names no skills or ne
   assert.doesNotMatch(out, /skills:|sube a:/);
   assert.match(out, /encargo autocontenido/);
 });
+
+test('a dispatch that started before the next prompt counts as followed even if it finishes later', async (t) => {
+  const s = await setup(); t.after(s.close);
+  await s.run({ prompt: MESSAGE, cwd: s.repo });
+  fs.appendFileSync(path.join(s.home, 'log.jsonl'), JSON.stringify({ ts: new Date().toISOString(), event: 'dispatch-start', agent: 'codex-astra' }) + '\n');
+  await s.run({ prompt: 'sí', cwd: s.repo });
+  assert.equal(s.entries().filter((e) => e.event === 'ignored').length, 0);
+});

@@ -79,7 +79,7 @@ function settlePrevious() {
     const prev = rows[i];
     if (!prev || prev.agent === 'session') return;
     const after = rows.slice(i + 1);
-    if (after.some((r) => r.event === 'dispatch' || r.event === 'used' || (r.event === 'ignored' && r.of === prev.id))) return;
+    if (after.some((r) => r.event === 'dispatch' || r.event === 'dispatch-start' || r.event === 'used' || (r.event === 'ignored' && r.of === prev.id))) return;
     log.append({ event: 'ignored', of: prev.id, agent: prev.agent, repo: prev.repo });
   } catch {
     // no log yet, or unreadable: nothing to settle

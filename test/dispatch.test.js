@@ -170,3 +170,16 @@ test('agy briefs say they cannot edit files; codex briefs do not', () => {
   assert.match(withFooter('agy-opus', 'hola'), /You cannot edit files in this mode\. Return the complete result \(the full text or the full code\) in your reply; the caller will save it\.\n\nDo not run git commit/);
   assert.equal(withFooter('codex-astra', 'hola'), 'hola' + FOOTER);
 });
+
+test('dispatch logs a start event before running, so a long run is not mistaken for an ignored recommendation', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'router-start-'));
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'router-cwd-'));
+  const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'router-bin-'));
+  fs.writeFileSync(path.join(fakeBin, 'codex'), '#!/bin/sh\ncat >/dev/null\nexit 0\n', { mode: 0o755 });
+  const r = spawnSync(process.execPath, [path.join(__dirname, '..', 'dispatch.js'), 'codex-reserve', '--cwd', cwd], {
+    env: { ...process.env, ROUTER_HOME: home, PATH: `${fakeBin}:${process.env.PATH}` }, input: 'brief',
+  });
+  assert.equal(r.status, 0);
+  const events = fs.readFileSync(path.join(home, 'log.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l).event);
+  assert.deepEqual(events, ['dispatch-start', 'dispatch']);
+});

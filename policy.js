@@ -13,7 +13,8 @@ const LADDERS = {
   pregunta: [['session', 3], ['claude-sonnet', 5]],
   implementar: [['codex-reserve', 3], ['codex-astra', 5]],
   bug: [['codex-reserve', 2], ['codex-astra', 5]],
-  revision: [['codex-reserve', 3], ['codex-astra', 5]],
+  // a small review is a chat answer the session already has the context for: 7 of 8 ignored
+  revision: [['session', 3], ['codex-astra', 5]],
   ui: [['codex-reserve', 2], ['codex-astra', 5]],
   qa: [['codex-reserve', 3], ['codex-astra', 5]],
   escribir: [['agy-flash', 2], ['agy-opus', 5]],

@@ -28,7 +28,7 @@ test('each ladder picks the first rung that reaches the weight', () => {
     ['escribir', 2, 'agy-flash'], ['escribir', 4, 'agy-opus'],
     ['pregunta', 1, 'session'], ['pregunta', 3, 'session'], ['pregunta', 4, 'claude-sonnet'],
     ['datos', 3, 'codex-reserve'], ['datos', 4, 'codex-astra'],
-    ['revision', 3, 'codex-reserve'], ['qa', 4, 'codex-astra'],
+    ['revision', 3, 'session'], ['revision', 4, 'codex-astra'], ['qa', 4, 'codex-astra'],
   ];
   for (const [tipo, peso, agent] of cases) assert.equal(d({ tipo, peso }).agent, agent, `${tipo}/${peso}`);
   assert.equal(Object.keys(LADDERS).length, 9);
@@ -94,4 +94,9 @@ test('a trivial task (peso 1) stays in the session, after the risk check', () =>
     assert.deepEqual([r.agent, r.why, r.skills, r.reviewer, r.up], ['session', 'simple', [], null, null], tipo);
   }
   assert.equal(d({ peso: 1, sensible: 0.9 }).why, 'risk');
+});
+
+test('a small review stays in the session: revision ≤3 to codex-reserve was ignored 7 of 8 times', () => {
+  assert.deepEqual([d({ tipo: 'revision', peso: 2 }).agent, d({ tipo: 'revision', peso: 2 }).why], ['session', 'simple']);
+  assert.deepEqual([d({ tipo: 'revision', peso: 4 }).agent, d({ tipo: 'revision', peso: 4 }).skills], ['codex-astra', ['code-review']]);
 });

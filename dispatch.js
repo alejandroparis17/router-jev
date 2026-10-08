@@ -109,6 +109,8 @@ async function main(argv) {
   if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) return fail(`--cwd is not a directory: ${cwd}`);
   const brief = withFooter(agent, fs.readFileSync(0, 'utf8'));
   if (brief.includes('\0')) return fail('brief contains a NUL byte');
+  // Logged before running: a long run often ends after the next prompt, which settles the recommendation.
+  log.append({ event: 'dispatch-start', agent, repo: path.basename(cwd) });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'router-'));
   try {
     fs.chmodSync(dir, 0o700);
