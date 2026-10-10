@@ -40,10 +40,11 @@ function decide(j) {
   if (!(j.sensible < MAX_RISK) || !(j.irreversible < MAX_RISK)) return session('risk');
   if (j.tipo === 'none' || !Object.hasOwn(LADDERS, j.tipo)) return session('none');
   if (j.peso === 1) return { ...session('simple'), context }; // a one-line job costs less than its brief
-  // An ambiguous task stays here: a Sonnet subagent for it was ignored 6 of 7 times in real use.
-  if (j.tipoProb < MIN_TYPE) return session('unsure');
-
   const think = j.decidir >= MIN_DECIDE && j.peso >= 3 ? 'codex-astra' : null;
+  // An ambiguous task stays here: a Sonnet subagent for it was ignored 6 of 7 times in real use. Its
+  // thinking phase does not need the type ("research X and apply it" is pregunta and ui at once), so
+  // it is kept: the strongest model decides and the session applies the conclusion.
+  if (j.tipoProb < MIN_TYPE) return { ...session('unsure'), context, think };
   if (think && (j.tipo === 'plan' || j.tipo === 'pregunta')) {
     return { ...session('think-only'), skills: SKILLS[j.tipo], context, think };
   }

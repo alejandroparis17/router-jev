@@ -114,10 +114,10 @@ test('decide threshold and weight gate preserve ordinary routing and always expo
   }
 });
 
-test('risk, unknown and unsure decisions never gain a thinking phase', () => {
+test('risk and unknown-type decisions never gain a thinking phase', () => {
   for (const [over, why] of [
     [{ sensible: 0.9 }, 'risk'], [{ irreversible: 0.9 }, 'risk'],
-    [{ tipo: 'none' }, 'none'], [{ tipo: 'unknown' }, 'none'], [{ tipoProb: 0.59 }, 'unsure'],
+    [{ tipo: 'none' }, 'none'], [{ tipo: 'unknown' }, 'none'],
   ]) {
     const r = d({ decidir: 0.9, ...over });
     assert.deepEqual([r.think, r.agent, r.why], [null, 'session', why]);
@@ -157,4 +157,13 @@ test('reduced weight is peso - 2 on the normal ladder, without special cases', (
   const light = d({ tipo: 'implementar', peso: 3, decidir: 0.9 });
   assert.deepEqual([light.agent, light.why, light.think, light.reviewer], ['session', 'simple', 'codex-astra', null]);
   assert.equal(d({ tipo: 'implementar', peso: 4, decidir: 0.9 }).reviewer, 'claude-sonnet');
+});
+
+test('an ambiguous type still gets the thinking phase: "research and apply" mixes pregunta and ui', () => {
+  const r = d({ tipo: 'pregunta', tipoProb: 0.45, peso: 3, decidir: 0.98 });
+  assert.deepEqual([r.think, r.agent, r.why], ['codex-astra', 'session', 'unsure']);
+  assert.equal(r.reviewer, null);
+  assert.equal(d({ tipoProb: 0.45, peso: 2, decidir: 0.98 }).think, null, 'a small one is answered in chat');
+  assert.equal(d({ tipoProb: 0.45, peso: 4, decidir: 0.2 }).think, null, 'no decision, no thinking phase');
+  assert.equal(d({ tipoProb: 0.45, peso: 4, decidir: 0.98, sensible: 0.9 }).think, null, 'risk still wins');
 });
