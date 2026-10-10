@@ -70,16 +70,18 @@ function line(d, j) {
 // The next prompt settles the previous recommendation: no dispatch or --record after it means it was
 // ignored (the session did the work itself, or could not delegate). Without this the log cannot say
 // whether a recommendation was followed. ponytail: only the last recommendation, read from the tail.
-function settlePrevious() {
+function settlePrevious(repo) {
   try {
-    const rows = fs.readFileSync(log.FILE, 'utf8').split('\n').slice(-60).filter((l) => l.startsWith('{')).flatMap((l) => {
+    const rows = fs.readFileSync(log.FILE, 'utf8').split('\n').slice(-200).filter((l) => l.startsWith('{')).flatMap((l) => {
       try { return [JSON.parse(l)]; } catch { return []; }
     });
-    const i = rows.map((r) => Boolean(r.tipo && !r.event)).lastIndexOf(true);
+    // Several sessions run at once in different repos: only this repo's last recommendation is settled.
+    const i = rows.map((r) => Boolean(r.tipo && !r.event && r.repo === repo)).lastIndexOf(true);
     const prev = rows[i];
     if (!prev || prev.agent === 'session') return;
-    const after = rows.slice(i + 1);
-    if (after.some((r) => r.event === 'dispatch' || r.event === 'dispatch-start' || r.event === 'used' || (r.event === 'ignored' && r.of === prev.id))) return;
+    const here = (r) => r.repo === undefined || r.repo === repo; // events logged before repo was recorded count anywhere
+    const followed = (r) => ((r.event === 'dispatch' || r.event === 'dispatch-start') && here(r)) || r.event === 'used';
+    if (rows.slice(i + 1).some((r) => followed(r) || (r.event === 'ignored' && r.of === prev.id))) return;
     log.append({ event: 'ignored', of: prev.id, agent: prev.agent, repo: prev.repo });
   } catch {
     // no log yet, or unreadable: nothing to settle
@@ -98,8 +100,8 @@ function readStdin() {
 async function main() {
   const t0 = Date.now();
   const { prompt = '', cwd = process.cwd() } = JSON.parse(await readStdin());
-  settlePrevious();
   const repo = repoRoot(cwd);
+  settlePrevious(path.basename(repo));
   const entry = { policy: POLICY_VERSION, repo: path.basename(repo) };
 
   const skip = skipReason(prompt) ?? (!allowed(repo) ? 'repo-not-allowed' : switchedOff(repo) ? 'repo-disabled' : null);

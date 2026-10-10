@@ -118,7 +118,7 @@ async function main(argv) {
     const r = await run(build({ cwd, outFile, brief }), brief, { cwd });
     let text = r.out;
     try { text = fs.readFileSync(outFile, 'utf8'); } catch { /* agent wrote to stdout */ }
-    log.append({ event: 'dispatch', agent, ok: r.ok, code: r.code, ms: r.ms });
+    log.append({ event: 'dispatch', agent, repo: path.basename(cwd), ok: r.ok, code: r.code, ms: r.ms });
     const unavailable = noteQuota(agent, { ...r, out: text });
     process.stdout.write(JSON.stringify({ agent, ok: r.ok, code: r.code, ms: r.ms, output: text.slice(-20000), error: r.err, ...(unavailable && { unavailable: true }) }) + '\n');
     return r.ok ? 0 : 1;

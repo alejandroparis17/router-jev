@@ -211,3 +211,25 @@ test('a dispatch that started before the next prompt counts as followed even if 
   await s.run({ prompt: 'sí', cwd: s.repo });
   assert.equal(s.entries().filter((e) => e.event === 'ignored').length, 0);
 });
+
+test('with sessions in several repos, a prompt only settles the recommendation of its own repo', async (t) => {
+  const s = await setup(); t.after(s.close);
+  const other = fs.mkdtempSync(path.join(os.tmpdir(), 'router-repo-'));
+  await s.run({ prompt: MESSAGE, cwd: s.repo });
+  const id = s.entries()[0].id;
+  await s.run({ prompt: 'sí', cwd: other });
+  assert.equal(s.entries().filter((e) => e.event === 'ignored').length, 0, 'a prompt in another repo settles nothing');
+  fs.appendFileSync(path.join(s.home, 'log.jsonl'), JSON.stringify({ ts: new Date().toISOString(), event: 'dispatch-start', agent: 'codex-astra', repo: 'elsewhere' }) + '\n');
+  await s.run({ prompt: 'sí', cwd: s.repo });
+  assert.deepEqual(s.entries().filter((e) => e.event === 'ignored').map((e) => e.of), [id], 'a dispatch in another repo does not count');
+});
+
+test('a dispatch started in the same repo after a prompt elsewhere still counts as followed', async (t) => {
+  const s = await setup(); t.after(s.close);
+  const other = fs.mkdtempSync(path.join(os.tmpdir(), 'router-repo-'));
+  await s.run({ prompt: MESSAGE, cwd: s.repo });
+  await s.run({ prompt: 'sí', cwd: other });
+  fs.appendFileSync(path.join(s.home, 'log.jsonl'), JSON.stringify({ ts: new Date().toISOString(), event: 'dispatch-start', agent: 'codex-astra', repo: path.basename(s.repo) }) + '\n');
+  await s.run({ prompt: 'sí', cwd: s.repo });
+  assert.equal(s.entries().filter((e) => e.event === 'ignored').length, 0);
+});
