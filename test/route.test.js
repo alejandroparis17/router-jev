@@ -1,6 +1,5 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const http = require('http');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -12,35 +11,41 @@ const ANSWERS = {
   depends: { type: 'noul', noul: 0.02 },
   sensitive: { type: 'noul', noul: 0.03 },
   irreversible: { type: 'noul', noul: 0.01 },
+  decide: { type: 'noul', noul: 0 },
 };
 const MESSAGE = 'Implementa un endpoint nuevo para guardar notas con validación y pruebas';
 
-function setup({ status = 200, answers = ANSWERS, allow = true } = {}) {
-  return new Promise((resolve) => {
-    const calls = [];
-    const server = http.createServer((req, res) => {
-      calls.push(req.url);
-      res.writeHead(status, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ answers }));
+async function setup({ status = 200, answers = ANSWERS, allow = true } = {}) {
+  const calls = [];
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'router-home-'));
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'router-repo-'));
+  fs.writeFileSync(path.join(home, 'repos.json'), JSON.stringify({ repos: [allow ? path.dirname(repo) : '/nowhere'] }));
+  const preload = path.join(home, 'fetch.cjs');
+  const callsFile = path.join(home, 'calls.jsonl');
+  // Stub only the external HTTP boundary; the child still runs the real classifier and hook.
+  fs.writeFileSync(preload, String.raw`const fs = require('fs');
+    globalThis.fetch = async (url) => {
+      fs.appendFileSync(${JSON.stringify(callsFile)}, JSON.stringify(url) + '\n');
+      return { ok: ${status >= 200 && status < 300}, json: async () => (${JSON.stringify({ answers })}) };
+    };`);
+  const run = (stdin) => new Promise((done) => {
+    const child = spawn(process.execPath, ['--require', preload, path.join(__dirname, '..', 'route.js')], {
+      env: { ...process.env, ROUTER_HOME: home, ROUTER_JEV_KEY: 'test-key', ROUTER_JEV_URL: 'https://jev.test' },
     });
-    server.listen(0, '127.0.0.1', () => {
-      const home = fs.mkdtempSync(path.join(os.tmpdir(), 'router-home-'));
-      const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'router-repo-'));
-      fs.writeFileSync(path.join(home, 'repos.json'), JSON.stringify({ repos: [allow ? path.dirname(repo) : '/nowhere'] }));
-      const run = (stdin) => new Promise((done) => {
-        const child = spawn(process.execPath, [path.join(__dirname, '..', 'route.js')], {
-          env: { ...process.env, ROUTER_HOME: home, ROUTER_JEV_KEY: 'test-key', ROUTER_JEV_URL: `http://127.0.0.1:${server.address().port}` },
-        });
-        let out = '';
-        child.stdout.on('data', (d) => (out += d));
-        child.on('close', (code) => { server.closeAllConnections(); done({ out, code }); });
-        child.stdin.end(typeof stdin === 'string' ? stdin : JSON.stringify(stdin));
-      });
-      const entries = () => (fs.existsSync(path.join(home, 'log.jsonl'))
-        ? fs.readFileSync(path.join(home, 'log.jsonl'), 'utf8').split('\n').filter(Boolean).map(JSON.parse) : []);
-      resolve({ run, calls, repo, entries, home, close: () => server.close() });
+    let out = '';
+    child.stdout.on('data', (d) => (out += d));
+    child.on('close', (code) => {
+      calls.splice(0, calls.length, ...(fs.existsSync(callsFile) ? fs.readFileSync(callsFile, 'utf8').trim().split('\n').map(JSON.parse) : []));
+      done({ out, code });
     });
+    child.stdin.end(typeof stdin === 'string' ? stdin : JSON.stringify(stdin));
   });
+  const entries = () => (fs.existsSync(path.join(home, 'log.jsonl'))
+    ? fs.readFileSync(path.join(home, 'log.jsonl'), 'utf8').split('\n').filter(Boolean).map(JSON.parse) : []);
+  return { run, calls, repo, entries, home, close: () => {
+    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(repo, { recursive: true, force: true });
+  } };
 }
 
 test('an allowed repo and a clear task: one line, one call, a log without the message', async (t) => {
@@ -232,4 +237,146 @@ test('a dispatch started in the same repo after a prompt elsewhere still counts 
   fs.appendFileSync(path.join(s.home, 'log.jsonl'), JSON.stringify({ ts: new Date().toISOString(), event: 'dispatch-start', agent: 'codex-astra', repo: path.basename(s.repo) }) + '\n');
   await s.run({ prompt: 'sí', cwd: s.repo });
   assert.equal(s.entries().filter((e) => e.event === 'ignored').length, 0);
+});
+
+const judgments = ({ peso = 2, tipo = 'implementar', decidir = 0, risk = 0, prob = 0.9, depende = 0 } = {}) => ({
+  ...ANSWERS,
+  weight: { type: 'score', score: peso - 1, confidence: 0.9 },
+  kind: { type: 'choice', choice: tipo, probabilities: { [tipo]: prob } },
+  decide: { type: 'noul', noul: decidir }, sensitive: { type: 'noul', noul: risk },
+  depends: { type: 'noul', noul: depende },
+});
+const transcript = (s, model) => {
+  const file = path.join(s.home, 'transcript.jsonl');
+  fs.writeFileSync(file, JSON.stringify({ type: 'assistant', message: { model, content: 'PRIVATE_TRANSCRIPT' } }) + '\n');
+  return file;
+};
+
+test('Opus delegates light implementation to Haiku; other session models keep routing', async (t) => {
+  for (const [model, peso, agent] of [
+    ['claude-opus-5-5', 1, 'claude-haiku'], ['claude-opus-5-5', 2, 'claude-haiku'],
+    ['claude-sonnet-5-5', 2, 'codex-reserve'], ['claude-haiku-4-5-20251001', 2, 'codex-reserve'],
+    ['unknown', 2, 'codex-reserve'], [null, 2, 'codex-reserve'],
+  ]) {
+    const s = await setup({ answers: judgments({ peso, depende: 0.9 }) }); t.after(s.close);
+    const { out, code } = await s.run({ prompt: MESSAGE, cwd: s.repo, transcript_path: transcript(s, model) });
+    assert.equal(code, 0);
+    assert.match(out, new RegExp(`→ ${agent} · implementar`));
+    assert.match(out, /encargo autocontenido/);
+    const e = s.entries().at(-1);
+    assert.equal(e.sessionModel, model?.includes('opus') ? 'opus' : model?.includes('sonnet') ? 'sonnet' : model?.includes('haiku') ? 'haiku' : null);
+    if (agent === 'claude-haiku') {
+      assert.equal(e.why, 'tier');
+      assert.equal(e.reviewer, null);
+      assert.doesNotMatch(out, /skills:|revisa:|sube a:|sesión en opus/);
+    }
+    assert.doesNotMatch(out + JSON.stringify(s.entries()), /PRIVATE_TRANSCRIPT|claude-opus-5-5|transcript\.jsonl|test-key|endpoint/);
+  }
+});
+
+test('only Opus conversation session decisions get the Sonnet nudge; exceptions are not tiered', async (t) => {
+  for (const [options, why, nudge] of [
+    [{ tipo: 'pregunta' }, 'simple', true], [{ tipo: 'none' }, 'none', true],
+    [{ prob: 0.4 }, 'unsure', true], [{ risk: 0.9, decidir: 0.9 }, 'risk', false],
+    [{ tipo: 'plan', peso: 4, decidir: 0.9 }, 'think-only', true],
+  ]) {
+    for (const model of ['claude-opus-5-5', 'claude-sonnet-5-5']) {
+      const s = await setup({ answers: judgments(options) }); t.after(s.close);
+      const { out } = await s.run({ prompt: MESSAGE, cwd: s.repo, transcript_path: transcript(s, model) });
+      assert.equal(s.entries().at(-1).why, why);
+      assert.equal(out.includes('sesión en opus: /model sonnet'), model.includes('opus') && nudge);
+      assert.doesNotMatch(out, /claude-haiku/);
+      assert.doesNotMatch(JSON.stringify(s.entries()), /sesión en opus|\/model sonnet/);
+    }
+  }
+});
+
+test('malformed, missing, non-string and huge transcripts keep normal routing and exit zero', async (t) => {
+  const s = await setup({ answers: judgments() }); t.after(s.close);
+  const file = transcript(s, 'claude-opus-5-5');
+  fs.appendFileSync(file, 'x'.repeat(1024 * 1024) + '\n'); // old Opus is outside the last 256 KB
+  const garbage = path.join(s.home, 'garbage'); fs.writeFileSync(garbage, '{broken\n');
+  for (const transcript_path of [undefined, null, 7, {}, path.join(s.home, 'missing'), s.home, garbage, file]) {
+    const { out, code } = await s.run({ prompt: MESSAGE, cwd: s.repo, transcript_path });
+    assert.equal(code, 0);
+    assert.match(out, /→ codex-reserve/);
+    assert.equal(s.entries().at(-1).sessionModel, null);
+  }
+  fs.appendFileSync(file, JSON.stringify({ type: 'assistant', message: { model: 'claude-opus-5-5' } }) + '\n');
+  assert.match((await s.run({ prompt: MESSAGE, cwd: s.repo, transcript_path: file })).out, /→ claude-haiku/);
+});
+
+test('thinking line names both phases, keeps usual bits and logs only judgments', async (t) => {
+  const s = await setup({ answers: judgments({ peso: 4, decidir: 0.9, depende: 0.9 }) }); t.after(s.close);
+  const { out } = await s.run({ prompt: MESSAGE, cwd: s.repo });
+  assert.equal(out, '[router] → decidir: codex-astra · implementar: codex-reserve · implementar · peso 4 · tipo 0.90 · skills: test-driven-development · revisa: claude-sonnet · sube a: codex-astra · encargo autocontenido\n');
+  assert.equal(s.entries().at(-1).think, 'codex-astra');
+  assert.equal(s.entries().at(-1).thinkFallbackFrom, undefined);
+});
+
+test('think-only line has no implementation and unavailable codex falls back to Opus for thinking', async (t) => {
+  for (const tipo of ['plan', 'implementar']) {
+    for (const markedDown of [false, true]) {
+      const s = await setup({ answers: judgments({ tipo, peso: 4, decidir: 0.9 }) }); t.after(s.close);
+      fs.writeFileSync(path.join(s.home, 'unavailable.json'), JSON.stringify({ codex: new Date(Date.now() + (markedDown ? 3600e3 : -3600e3)).toISOString() }));
+      const { out } = await s.run({ prompt: MESSAGE, cwd: s.repo });
+      assert.match(out, new RegExp(`^\\[router\\] → decidir: ${markedDown ? 'claude-opus' : 'codex-astra'} · `));
+      if (tipo === 'plan') {
+        assert.match(out, /solo pensar \(plan\).*skills: brainstorming, writing-plans/);
+        assert.doesNotMatch(out, /implementar:|revisa:|sube a:/);
+      } else assert.match(out, new RegExp(`implementar: ${markedDown ? 'claude-sonnet' : 'codex-reserve'}`));
+      const e = s.entries().at(-1);
+      assert.equal(e.thinkFallbackFrom, markedDown ? 'codex-astra' : undefined);
+      assert.equal(e.think, markedDown ? 'claude-opus' : 'codex-astra');
+      assert.equal(e.fallbackFrom, markedDown && tipo !== 'plan' ? 'codex-reserve' : undefined);
+    }
+  }
+});
+
+test('sessionModel reads the last assistant model only, bounds its reads and never blocks on a FIFO', (t) => {
+  const { sessionModel } = require('../route');
+  assert.equal(typeof sessionModel, 'function');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'router-transcript-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'session.jsonl');
+  const row = (type, model) => JSON.stringify({ type, message: { model } }) + '\n';
+  fs.writeFileSync(file, row('assistant', 'claude-opus-5-5') + 'x'.repeat(300000) + '\n' + row('assistant', 'claude-sonnet-5-5') + row('user', 'claude-opus-5-5') + '{broken\n' + row('assistant', 42));
+  const originalRead = fs.readSync;
+  let total = 0;
+  t.mock.method(fs, 'readSync', (fd, buffer, offset, length, position) => {
+    total += length;
+    assert.ok(position >= fs.statSync(file).size - 256 * 1024);
+    return originalRead(fd, buffer, offset, length, position);
+  });
+  assert.equal(sessionModel(file), 'sonnet');
+  assert.ok(total <= 256 * 1024);
+  t.mock.restoreAll();
+  fs.appendFileSync(file, row('assistant', '<synthetic>'));
+  assert.equal(sessionModel(file), 'sonnet');
+  const only = path.join(dir, 'only-synthetic');
+  fs.writeFileSync(only, row('assistant', '<synthetic>'));
+  assert.equal(sessionModel(only), null);
+  for (const bad of [undefined, null, 2, {}, dir, path.join(dir, 'missing')]) assert.equal(sessionModel(bad), null);
+  const fifo = path.join(dir, 'fifo');
+  require('child_process').execFileSync('mkfifo', [fifo]);
+  const result = require('child_process').spawnSync(process.execPath, ['-e', 'process.stdout.write(JSON.stringify(require("./route").sessionModel(process.argv[1])))', fifo], {
+    cwd: path.join(__dirname, '..'), timeout: 1000, encoding: 'utf8', env: { ...process.env, ROUTER_HOME: dir },
+  });
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, 'null');
+});
+
+test('Opus tiers bug and revision peso 2 to Haiku; risk stays in session; light task survives codex down', async (t) => {
+  for (const [options, why] of [[{ tipo: 'bug' }, 'tier'], [{ tipo: 'revision' }, 'tier'], [{ risk: 0.9 }, 'risk']]) {
+    const s = await setup({ answers: judgments(options) }); t.after(s.close);
+    const { out } = await s.run({ prompt: MESSAGE, cwd: s.repo, transcript_path: transcript(s, 'claude-opus-5-5') });
+    assert.equal(s.entries().at(-1).why, why);
+    if (why === 'tier') assert.match(out, /→ claude-haiku/);
+    else assert.match(out, /sesión actual \(risk\)/), assert.doesNotMatch(out, /claude-haiku|sesión en opus/);
+  }
+  const s = await setup({ answers: judgments() }); t.after(s.close);
+  fs.writeFileSync(path.join(s.home, 'unavailable.json'), JSON.stringify({ codex: new Date(Date.now() + 3600e3).toISOString() }));
+  const { out, code } = await s.run({ prompt: MESSAGE, cwd: s.repo, transcript_path: transcript(s, 'claude-opus-5-5') });
+  assert.equal(code, 0);
+  assert.match(out, /^\[router\] → /);
 });

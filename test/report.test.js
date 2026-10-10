@@ -52,3 +52,28 @@ test('Claude Pro also counts followed claude-* recommendations', () => {
   const r = summarize([c('k', 'claude-sonnet', 4), c('l', 'claude-sonnet', 4), { event: 'ignored', ts: '2026-10-03T11:00:00Z', of: 'l', agent: 'claude-sonnet' }], '2026-10-01');
   assert.equal(r.byQuota.claude.count, 2); // l ignored + k followed
 });
+
+test('report counts thinking phases and Opus sessions only among classifications in the period', (t) => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'router-report-'));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const ts = '2026-10-09T10:00:00Z';
+  const entries = [
+    c('a', 'codex-reserve', 4, ts, { think: 'codex-astra', sessionModel: 'opus' }),
+    c('b', 'session', 4, ts, { why: 'think-only', think: 'claude-opus', sessionModel: 'sonnet' }),
+    c('c', 'claude-haiku', 2, ts, { why: 'tier', sessionModel: 'opus' }),
+    c('legacy', 'session', 2, ts),
+    c('old', 'session', 3, '2026-10-07', { think: 'codex-astra', sessionModel: 'opus' }),
+    { event: 'dispatch', tipo: 'plan', ts, think: 'codex-astra', sessionModel: 'opus' },
+    { skip: 'short', ts, think: 'codex-astra', sessionModel: 'opus' },
+  ];
+  fs.writeFileSync(path.join(home, 'log.jsonl'), entries.map(JSON.stringify).join('\n'));
+  const result = require('child_process').spawnSync(process.execPath, [path.join(__dirname, '..', 'report.js'), '--since', '2026-10-08'], {
+    encoding: 'utf8', env: { ...process.env, ROUTER_HOME: home },
+  });
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /^fases decidir→implementar: 2$/m);
+  assert.match(result.stdout, /^sesión en opus: 2 de 4 clasificados$/m);
+});

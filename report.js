@@ -45,6 +45,8 @@ function summarize(rows, sinceIso) {
   return {
     since: sinceIso,
     classified: cls.length,
+    thinking: cls.filter((r) => r.think).length,
+    opusSessions: cls.filter((r) => r.sessionModel === 'opus').length,
     skipped: count(rs.filter((r) => r.skip), (r) => r.skip),
     decisions: count(cls, (r) => `${r.agent}/${r.why}`),
     recommended: rec.length,
@@ -72,6 +74,8 @@ function print(s) {
   const m = (x) => `${x.count} (${Math.round(x.minutes * 10) / 10} min)`;
   console.log(`período:                  desde ${s.since}`);
   console.log(`mensajes clasificados:    ${s.classified}`);
+  console.log(`fases decidir→implementar: ${s.thinking}`);
+  console.log(`sesión en opus: ${s.opusSessions} de ${s.classified} clasificados`);
   console.log(`saltados:                 ${kv(s.skipped)}`);
   console.log(`decisiones:               ${kv(s.decisions)}`);
   console.log(`recomendaciones delegar:  ${s.recommended} · seguidas ${s.followed} · ignoradas ${s.ignored} · ${s.followRate}% seguidas`);

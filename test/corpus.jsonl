@@ -31,3 +31,10 @@
 {"m": "¿Cómo hago un deploy a producción sin perder datos usando Docker Compose?", "tipo": "pregunta", "peso": 2}
 {"m": "Explica la diferencia entre git reset --hard y git revert y cuándo usar cada uno", "tipo": "pregunta", "peso": 1}
 {"m": "Escribe una función que borre los archivos temporales antiguos de un directorio y añade tests", "tipo": "implementar", "peso": 2}
+{"m": "Investiga cuál es la mejor tipografía para la landing de una consultora y recomienda una", "tipo": "pregunta", "peso": 3, "decidir": true}
+{"m": "Compara Postgres y SQLite para este proyecto y decide cuál usar", "tipo": "plan", "peso": 3, "decidir": true}
+{"m": "Diseña el enfoque para sincronizar eventos con Google Calendar y recomienda la arquitectura", "tipo": "plan", "peso": 4, "decidir": true}
+{"m": "Evalúa tres librerías de gráficos y elige la mejor para dashboards", "tipo": "pregunta", "peso": 3, "decidir": true}
+{"m": "Cambia el color del botón del menú a azul", "tipo": "ui", "peso": 1, "decidir": false}
+{"m": "Añade un campo teléfono al formulario de contacto", "tipo": "ui", "peso": 2, "decidir": false}
+{"m": "Arregla el typo en el título de la página de precios", "tipo": "implementar", "peso": 1, "decidir": false}

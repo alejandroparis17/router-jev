@@ -119,3 +119,13 @@ test('the section makes delegation the default and explains unavailable agents',
   assert.match(SECTION, /unavailable: true.*recomendará claude-sonnet; usa ese o hazlo tú/);
   assert.match(SECTION, /devuelven el resultado como texto \(no editan archivos\); guárdalo tú y revísalo/);
 });
+
+test('the section explains written decisions, verbatim handoff, thinking only, tier and the one-time nudge', () => {
+  for (const text of ['decidir:', 'Paso 1', 'Paso 2', 'codex-astra', 'dispatch.js', 'claude-opus',
+    'model opus', 'SOLO una conclusión escrita', 'recomendación', 'razones', 'opciones descartadas',
+    'decisiones exactas', 'sin código ni ediciones de archivos', 'conversación',
+    'literalmente', 'implementar:', 'solo pensar', 'sesión en opus: /model sonnet',
+    'una sola vez', 'claude-haiku', 'tier', 'model haiku']) {
+    assert.ok(SECTION.includes(text), text);
+  }
+});

@@ -100,3 +100,61 @@ test('a small review stays in the session: revision ≤3 to codex-reserve was ig
   assert.deepEqual([d({ tipo: 'revision', peso: 2 }).agent, d({ tipo: 'revision', peso: 2 }).why], ['session', 'simple']);
   assert.deepEqual([d({ tipo: 'revision', peso: 4 }).agent, d({ tipo: 'revision', peso: 4 }).skills], ['codex-astra', ['code-review']]);
 });
+
+test('decide threshold and weight gate preserve ordinary routing and always expose think', () => {
+  assert.equal(require('../policy').MIN_DECIDE, 0.5);
+  for (const [decidir, peso, think, agent] of [
+    [0.4, 4, null, 'codex-astra'], [NaN, 4, null, 'codex-astra'],
+    [undefined, 4, null, 'codex-astra'], [0.5, 2, null, 'codex-reserve'],
+    [0.5, 3, 'codex-astra', 'session'], [0.5, 4, 'codex-astra', 'codex-reserve'],
+    [0.9, 5, 'codex-astra', 'codex-reserve'],
+  ]) {
+    const r = d({ decidir, peso });
+    assert.deepEqual([r.think, r.agent], [think, agent]);
+  }
+});
+
+test('risk, unknown and unsure decisions never gain a thinking phase', () => {
+  for (const [over, why] of [
+    [{ sensible: 0.9 }, 'risk'], [{ irreversible: 0.9 }, 'risk'],
+    [{ tipo: 'none' }, 'none'], [{ tipo: 'unknown' }, 'none'], [{ tipoProb: 0.59 }, 'unsure'],
+  ]) {
+    const r = d({ decidir: 0.9, ...over });
+    assert.deepEqual([r.think, r.agent, r.why], [null, 'session', why]);
+  }
+  assert.equal(d({ peso: 1, decidir: 0.9 }).think, null);
+});
+
+test('planning and research delegate only thinking, with their skills and context', () => {
+  for (const [tipo, skills] of [['plan', ['brainstorming', 'writing-plans']], ['pregunta', []]]) {
+    assert.deepEqual(d({ tipo, peso: 5, decidir: 0.5, depende: 0.9 }), {
+      agent: 'session', why: 'think-only', skills, reviewer: null, up: null, context: true, think: 'codex-astra',
+    });
+  }
+});
+
+test('implementation uses reduced weight but reviewer uses original weight', () => {
+  assert.deepEqual(d({ peso: 4, decidir: 0.5, depende: 0.9 }), {
+    agent: 'codex-reserve', why: 'ladder', skills: ['test-driven-development'],
+    reviewer: 'claude-sonnet', up: 'codex-astra', context: true, think: 'codex-astra',
+  });
+  assert.equal(d({ tipo: 'bug', peso: 4, decidir: 0.5 }).agent, 'codex-reserve');
+  assert.equal(d({ tipo: 'escribir', peso: 4, decidir: 0.5 }).agent, 'agy-flash');
+  assert.deepEqual(d({ tipo: 'escribir', peso: 4, decidir: 0.5 }).skills, []);
+  assert.deepEqual([d({ tipo: 'revision', peso: 4, decidir: 0.5 }).agent,
+    d({ tipo: 'revision', peso: 4, decidir: 0.5 }).reviewer], ['session', 'claude-sonnet']);
+});
+
+test('reduced weight is peso - 2 on the normal ladder, without special cases', () => {
+  assert.deepEqual(d({ tipo: 'ui', peso: 4, decidir: 0.9 }), {
+    agent: 'codex-reserve', why: 'ladder', skills: ['frontend-design'], reviewer: 'claude-sonnet',
+    up: 'codex-astra', context: false, think: 'codex-astra',
+  });
+  assert.equal(d({ tipo: 'ui', peso: 3, decidir: 0 }).agent, 'codex-astra');
+  assert.equal(d({ tipo: 'ui', peso: 4, decidir: 0 }).agent, 'codex-astra');
+  assert.equal(d({ tipo: 'ui', peso: 5, decidir: 0.9 }).agent, 'codex-astra');
+  assert.equal(d({ tipo: 'implementar', peso: 5, decidir: 0.9 }).agent, 'codex-reserve');
+  const light = d({ tipo: 'implementar', peso: 3, decidir: 0.9 });
+  assert.deepEqual([light.agent, light.why, light.think, light.reviewer], ['session', 'simple', 'codex-astra', null]);
+  assert.equal(d({ tipo: 'implementar', peso: 4, decidir: 0.9 }).reviewer, 'claude-sonnet');
+});

@@ -3,6 +3,7 @@
 // The thresholds are provisional until eval.js has calibrated them on the corpus.
 const POLICY_VERSION = 1;
 const MIN_TYPE = 0.6;
+const MIN_DECIDE = 0.5;
 const MAX_RISK = 0.3;
 const MAX_DEPENDS = 0.4;
 
@@ -29,7 +30,7 @@ const SKILLS = {
 };
 
 const family = (agent) => agent.split('-')[0];
-const session = (why) => ({ agent: 'session', why, skills: [], reviewer: null, up: null, context: false });
+const session = (why) => ({ agent: 'session', why, skills: [], reviewer: null, up: null, context: false, think: null });
 
 function decide(j) {
   // Depending on the conversation does not keep a task here: the session writes the brief, so it
@@ -42,8 +43,15 @@ function decide(j) {
   // An ambiguous task stays here: a Sonnet subagent for it was ignored 6 of 7 times in real use.
   if (j.tipoProb < MIN_TYPE) return session('unsure');
 
+  const think = j.decidir >= MIN_DECIDE && j.peso >= 3 ? 'codex-astra' : null;
+  if (think && (j.tipo === 'plan' || j.tipo === 'pregunta')) {
+    return { ...session('think-only'), skills: SKILLS[j.tipo], context, think };
+  }
+  // Deciding consumes most of the hard part: implement with weight peso - 2 (min 1) on the normal ladder.
+  const peso = think ? Math.max(1, j.peso - 2) : j.peso;
+  if (peso === 1) return { ...session('simple'), context, think };
   const ladder = LADDERS[j.tipo];
-  let i = ladder.findIndex(([, max]) => j.peso <= max);
+  let i = ladder.findIndex(([, max]) => peso <= max);
   // Clamp to last rung if peso is out of range.
   if (i === -1) i = ladder.length - 1;
   const agent = ladder[i][0];
@@ -56,7 +64,8 @@ function decide(j) {
     reviewer: heavy ? (family(agent) === 'claude' ? 'codex-review' : 'claude-sonnet') : null,
     up: ladder[i + 1]?.[0] ?? null,
     context,
+    think,
   };
 }
 
-module.exports = { decide, LADDERS, POLICY_VERSION, MIN_TYPE, MAX_RISK, MAX_DEPENDS };
+module.exports = { decide, LADDERS, POLICY_VERSION, MIN_TYPE, MIN_DECIDE, MAX_RISK, MAX_DEPENDS };

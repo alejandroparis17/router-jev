@@ -9,6 +9,7 @@ const answers = (over = {}) => ({
   depends: { type: 'noul', noul: 0.1 },
   sensitive: { type: 'noul', noul: 0.2 },
   irreversible: { type: 'noul', noul: 0.05 },
+  decide: { type: 'noul', noul: 0.7 },
   ...over,
 });
 const ok = (body) => async () => ({ ok: true, json: async () => body });
@@ -16,6 +17,8 @@ const ok = (body) => async () => ({ ok: true, json: async () => body });
 test('every type in the policy is offered to Jev, plus none', () => {
   assert.deepEqual(Object.keys(QUESTIONS.kind.criteria).sort(), [...Object.keys(LADDERS), 'none'].sort());
   assert.equal(QUESTIONS.weight.criteria.length, 5);
+  assert.deepEqual(Object.keys(QUESTIONS), ['weight', 'kind', 'depends', 'sensitive', 'irreversible', 'decide']);
+  assert.equal(QUESTIONS.decide.type, 'noul');
 });
 
 test('weight is the rounded score plus one; an unsure distribution takes the heavier', () => {
@@ -29,7 +32,7 @@ test('weight is the rounded score plus one; an unsure distribution takes the hea
 
 test('parse reads the type probability from probabilities, not confidence', () => {
   const j = parse(answers());
-  assert.deepEqual([j.tipo, j.tipoProb, j.depende, j.sensible, j.irreversible], ['bug', 0.9, 0.1, 0.2, 0.05]);
+  assert.deepEqual([j.tipo, j.tipoProb, j.depende, j.sensible, j.irreversible, j.decidir], ['bug', 0.9, 0.1, 0.2, 0.05, 0.7]);
 });
 
 test('anything incomplete or out of range is null', () => {
@@ -80,4 +83,12 @@ test('parse rejects non-finite scores, missing confidence and out-of-range proba
   assert.equal(parse(answers({ depends: { type: 'noul', noul: NaN } })), null);
   assert.equal(parse(answers(kind(1.5))), null);
   assert.equal(parse(answers(kind(-0.1))), null);
+});
+
+test('decide is required, finite, typed noul and bounded inclusively', () => {
+  for (const value of [undefined, null, { type: 'score', noul: 0.5 },
+    ...[undefined, null, '0.5', NaN, Infinity, -Infinity, -0.1, 1.1].map(noul => ({ type: 'noul', noul }))]) {
+    assert.equal(parse(answers({ decide: value })), null);
+  }
+  for (const noul of [0, 0.5, 1]) assert.equal(parse(answers({ decide: { type: 'noul', noul } })).decidir, noul);
 });

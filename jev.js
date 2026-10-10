@@ -50,6 +50,10 @@ const QUESTIONS = {
     type: 'noul',
     instructions: 'Does this request ask for an action to be PERFORMED that is hard to undo or that reaches outside this computer: deploying, deleting real data, force-pushing, sending an email or message, charging a payment? Questions, explanations and requests to write, edit, review or test code do NOT count, even when they mention those actions or ask for code that performs them; only count it when the request itself asks for the action to actually be carried out now. Ignore the fact that the task may be handed to another coding assistant.',
   },
+  decide: {
+    type: 'noul',
+    instructions: 'Does the request require reaching a conclusion or recommendation by investigating, researching, comparing, evaluating or choosing options, or designing an approach? Count this even when the request also asks to implement the chosen result. Merely adding, changing, fixing or building something specific whose content is already decided does NOT count. Finding which option is best, researching alternatives and recommending an architecture DO count.',
+  },
 };
 
 function getKey() {
@@ -72,11 +76,11 @@ function parse(a) {
   // Reject Object.prototype keys and unknown choices.
   const { LADDERS } = require('./policy');
   if (k.choice !== 'none' && !Object.hasOwn(LADDERS, k.choice)) return null;
-  const [depende, sensible, irreversible, tipoProb] = [noul(a.depends), noul(a.sensitive), noul(a.irreversible), k.probabilities?.[k.choice]];
-  if ([depende, sensible, irreversible, tipoProb].some((v) => !num(v) || v < 0 || v > 1)) return null;
+  const [depende, sensible, irreversible, decidir, tipoProb] = [noul(a.depends), noul(a.sensitive), noul(a.irreversible), noul(a.decide), k.probabilities?.[k.choice]];
+  if ([depende, sensible, irreversible, decidir, tipoProb].some((v) => !num(v) || v < 0 || v > 1)) return null;
   // Score is a 0-4 mean; weight 1-5. An unsure distribution (low confidence) takes the heavier.
   const peso = Math.min(5, Math.round(w.score) + 1 + (w.confidence < 0.4 ? 1 : 0));
-  return { peso, tipo: k.choice, tipoProb, depende, sensible, irreversible };
+  return { peso, tipo: k.choice, tipoProb, depende, sensible, irreversible, decidir };
 }
 
 async function classify(message, { fetchImpl = fetch, getKey: key = getKey } = {}) {

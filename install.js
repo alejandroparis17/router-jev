@@ -13,6 +13,9 @@ const SECTION = `${START}
 
 Un hook añade a veces una línea \`[router] → <agente> · <tipo> · peso N …\`. Es un consejo, no una orden.
 
+- Si tras \`[router] →\` la línea empieza por \`decidir:\`, delega en dos pasos. Paso 1: envía al agente de decidir (\`codex-astra\` mediante \`dispatch.js\`, o \`claude-opus\` con la herramienta Agent y \`model opus\`) un encargo autocontenido con todo lo necesario de la conversación que pida SOLO una conclusión escrita: la recomendación, las razones, las opciones descartadas y las decisiones exactas que debe seguir quien implemente; sin código ni ediciones de archivos. Paso 2: incluye esa conclusión literalmente en el encargo de implementación y delega según el agente de \`implementar:\`. Si aparece \`solo pensar\`, haz solo el Paso 1 y comunica la conclusión a la persona; si \`implementar: session\`, aplica tú la conclusión.
+- Si la línea contiene \`sesión en opus: /model sonnet\`, indica a la persona una sola vez, brevemente, que esta conversación podría ejecutarse en Sonnet.
+- Un agente \`claude-haiku\` con motivo \`tier\` se ejecuta con la herramienta Agent y \`model haiku\`.
 - \`sesión actual\`: sigue tú; no delegues.
 - \`claude-haiku\`, \`claude-sonnet\`, \`claude-opus\`: lanza un subagente con la herramienta Agent y ese \`model\`.
 - \`codex-reserve\`, \`codex-astra\`, \`agy-flash\`, \`agy-opus\`: **delegar es lo predeterminado.** Escribe el encargo (objetivo, zona del repo, lo decidido en la conversación, criterio de hecho comprobable y las skills que se nombren) y ejecuta \`node ~/.claude/router/dispatch.js <agente> --cwd <repo>\` con el encargo por stdin. Mientras trabaja, no hagas tú la misma tarea. Lee el JSON que devuelve, revisa el resultado y haz commit solo si la persona lo pidió. Solo te la quedas si la persona dijo "hazlo tú", si ya la tienes a medio hacer en esta sesión, o si no puedes escribir un encargo completo; en ese caso dilo en una línea con el motivo.

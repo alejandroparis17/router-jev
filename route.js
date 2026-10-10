@@ -11,7 +11,31 @@ const { decide, POLICY_VERSION } = require('./policy');
 const log = require('./log');
 
 const DEADLINE_MS = 3000;
-const timer = setTimeout(() => process.exit(0), DEADLINE_MS); // armed before any read
+
+// A transcript can be large or still being written. Only inspect its bounded tail.
+function sessionModel(transcriptPath) {
+  if (typeof transcriptPath !== 'string' || !transcriptPath) return null;
+  let fd;
+  try {
+    fd = fs.openSync(transcriptPath, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK);
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile()) return null;
+    const size = Math.min(stat.size, 256 * 1024);
+    const buffer = Buffer.alloc(size);
+    const bytes = fs.readSync(fd, buffer, 0, size, stat.size - size);
+    const rows = buffer.toString('utf8', 0, bytes).split('\n');
+    for (let i = rows.length - 1; i >= 0; i--) {
+      let row;
+      try { row = JSON.parse(rows[i]); } catch { continue; }
+      if (row?.type !== 'assistant' || typeof row.message?.model !== 'string') continue;
+      const model = row.message.model.toLowerCase();
+      const found = ['opus', 'sonnet', 'haiku'].find((family) => model.includes(family));
+      if (found) return found; // '<synthetic>' and the like: keep looking earlier
+    }
+  } catch { /* unknown model must not interrupt a prompt */ }
+  finally { if (fd !== undefined) { try { fs.closeSync(fd); } catch { /* already closed */ } } }
+  return null;
+}
 
 function repoRoot(cwd) {
   try {
@@ -54,17 +78,21 @@ function down(family, now = Date.now()) {
 function avoidDownAgent(d, j) {
   const fam = d.agent.split('-')[0];
   if ((fam !== 'codex' && fam !== 'agy') || !down(fam)) return d;
-  return { agent: 'claude-sonnet', why: 'no-quota', skills: [], reviewer: null, up: null, context: d.context, fallbackFrom: d.agent };
+  return { ...d, agent: 'claude-sonnet', why: 'no-quota', skills: [], reviewer: null, up: null, context: d.context, fallbackFrom: d.agent };
 }
 
 function line(d, j) {
-  if (d.agent === 'session') return `[router] → sesión actual (${d.why}) · ${j.tipo} · peso ${j.peso}`;
-  const bits = [`[router] → ${d.agent}`, j.tipo, `peso ${j.peso}`, `tipo ${j.tipoProb.toFixed(2)}`];
+  const nudge = d.nudge ? ` · ${d.nudge}` : '';
+  if (!d.think && d.agent === 'session') return `[router] → sesión actual (${d.why}) · ${j.tipo} · peso ${j.peso}${nudge}`;
+  const target = d.think
+    ? `decidir: ${d.think} · ${d.why === 'think-only' ? `solo pensar (${j.tipo})` : `implementar: ${d.agent}`}`
+    : d.agent;
+  const bits = [`[router] → ${target}`, j.tipo, `peso ${j.peso}`, `tipo ${j.tipoProb.toFixed(2)}`];
   if (d.skills.length) bits.push(`skills: ${d.skills.join(', ')}`);
   if (d.reviewer) bits.push(`revisa: ${d.reviewer}`);
   if (d.up) bits.push(`sube a: ${d.up}`);
   if (d.context) bits.push('encargo autocontenido');
-  return bits.join(' · ');
+  return bits.join(' · ') + nudge;
 }
 
 // The next prompt settles the previous recommendation: no dispatch or --record after it means it was
@@ -99,7 +127,7 @@ function readStdin() {
 
 async function main() {
   const t0 = Date.now();
-  const { prompt = '', cwd = process.cwd() } = JSON.parse(await readStdin());
+  const { prompt = '', cwd = process.cwd(), transcript_path } = JSON.parse(await readStdin());
   const repo = repoRoot(cwd);
   settlePrevious(path.basename(repo));
   const entry = { policy: POLICY_VERSION, repo: path.basename(repo) };
@@ -110,9 +138,24 @@ async function main() {
   const j = await classify(prompt);
   if (!j) return log.append({ ...entry, skip: 'jev-unavailable', ms: Date.now() - t0 });
 
-  const d = avoidDownAgent(decide(j), j);
-  log.append({ ...entry, ...j, agent: d.agent, why: d.why, reviewer: d.reviewer, ...(d.fallbackFrom && { fallbackFrom: d.fallbackFrom }), ms: Date.now() - t0 });
+  let d = avoidDownAgent(decide(j), j);
+  const model = sessionModel(transcript_path);
+  if (model === 'opus' && j.tipo !== 'pregunta' && j.peso <= 2 &&
+      ((d.agent === 'session' && d.why === 'simple') || (d.agent === 'codex-reserve' && d.why === 'ladder'))) {
+    d = { ...d, agent: 'claude-haiku', why: 'tier', skills: [], reviewer: null, up: null };
+  }
+  if (model === 'opus' && d.agent === 'session' && ['simple', 'none', 'unsure', 'think-only'].includes(d.why)) {
+    d.nudge = 'sesión en opus: /model sonnet';
+  }
+  if (d.think === 'codex-astra' && down('codex')) {
+    d = { ...d, think: 'claude-opus', thinkFallbackFrom: 'codex-astra' };
+  }
+  log.append({ ...entry, ...j, sessionModel: model, ...(d.think && { think: d.think }), ...(d.thinkFallbackFrom && { thinkFallbackFrom: d.thinkFallbackFrom }), agent: d.agent, why: d.why, reviewer: d.reviewer, ...(d.fallbackFrom && { fallbackFrom: d.fallbackFrom }), ms: Date.now() - t0 });
   process.stdout.write(line(d, j) + '\n');
 }
 
-main().catch(() => {}).finally(() => clearTimeout(timer));
+if (require.main === module) {
+  const timer = setTimeout(() => process.exit(0), DEADLINE_MS); // armed before any read
+  main().catch(() => {}).finally(() => clearTimeout(timer));
+}
+module.exports = { sessionModel };
