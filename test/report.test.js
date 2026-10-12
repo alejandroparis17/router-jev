@@ -107,3 +107,13 @@ test('readTokens reads every project transcript newer than since and tolerates a
   assert.equal(readTokens('2026-10-08', dir).opus.main, 3);
   assert.deepEqual(readTokens('2026-10-08', path2.join(dir, 'nope')), {});
 });
+
+test('readTokens also reads subagent transcripts under <session>/subagents and counts them as subagents', () => {
+  const dir = fs2.mkdtempSync(path2.join(os2.tmpdir(), 'router-tok-'));
+  fs2.mkdirSync(path2.join(dir, 'p1', 'sess1', 'subagents'), { recursive: true });
+  fs2.writeFileSync(path2.join(dir, 'p1', 'sess1.jsonl'), tline('claude-sonnet-5-5', false, '2026-10-10T01:00:00Z', [1, 1, 1]) + '\n');
+  fs2.writeFileSync(path2.join(dir, 'p1', 'sess1', 'subagents', 'agent-a.jsonl'), tline('claude-haiku-4-5-20251001', true, '2026-10-10T01:01:00Z', [2, 2, 2]) + '\n');
+  const t = readTokens('2026-10-08', dir);
+  assert.deepEqual(t.haiku, { main: 0, sub: 6 });
+  assert.deepEqual(t.sonnet, { main: 3, sub: 0 });
+});

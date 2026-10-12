@@ -92,21 +92,29 @@ function tokensByModel(lines, since) {
 function readTokens(since, dir = path.join(os.homedir(), '.claude', 'projects')) {
   const total = {};
   const cut = Date.parse(since);
+  // <project>/<session>.jsonl and <project>/<session>/subagents/<agent>.jsonl
+  const files = [];
   try {
     for (const p of fs.readdirSync(dir)) {
       for (const f of fs.readdirSync(path.join(dir, p))) {
-        if (!f.endsWith('.jsonl')) continue;
-        const file = path.join(dir, p, f);
-        if (fs.statSync(file).mtimeMs < cut) continue;
-        const t = tokensByModel(fs.readFileSync(file, 'utf8').split('\n'), since);
-        for (const [fam, v] of Object.entries(t)) {
-          total[fam] ??= { main: 0, sub: 0 };
-          total[fam].main += v.main;
-          total[fam].sub += v.sub;
+        const full = path.join(dir, p, f);
+        if (f.endsWith('.jsonl')) files.push(full);
+        else {
+          try { for (const g of fs.readdirSync(path.join(full, 'subagents'))) if (g.endsWith('.jsonl')) files.push(path.join(full, 'subagents', g)); } catch { /* no subagents */ }
         }
       }
     }
   } catch { /* no transcripts */ }
+  for (const file of files) {
+    try {
+      if (fs.statSync(file).mtimeMs < cut) continue;
+      for (const [fam, v] of Object.entries(tokensByModel(fs.readFileSync(file, 'utf8').split('\n'), since))) {
+        total[fam] ??= { main: 0, sub: 0 };
+        total[fam].main += v.main;
+        total[fam].sub += v.sub;
+      }
+    } catch { /* unreadable transcript */ }
+  }
   return total;
 }
 
