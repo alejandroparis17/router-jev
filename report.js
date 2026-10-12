@@ -2,6 +2,8 @@
 'use strict';
 // Adoption report over log.jsonl. Prints only counts, agent names, types, weights and times.
 const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const log = require('./log');
 
 const fam = (a) => String(a).split('-')[0];
@@ -67,6 +69,57 @@ function parseSince(arg, now = Date.now()) {
   return ok ? arg : new Date(now - 7 * 864e5).toISOString().slice(0, 10);
 }
 
+// Work tokens (new input + cache writes + output; cache reads excluded) per model family, split
+// between the main session and subagents. Reads only counts and model ids, never message text.
+const FAMILIES = ['opus', 'sonnet', 'haiku'];
+function tokensByModel(lines, since) {
+  const out = {};
+  for (const l of lines) {
+    let d;
+    try { d = JSON.parse(l); } catch { continue; }
+    const m = d?.message;
+    if (d?.type !== 'assistant' || typeof m?.model !== 'string' || !m.usage || !(d.timestamp >= since)) continue;
+    const fam = FAMILIES.find((f) => m.model.includes(f));
+    if (!fam) continue;
+    const u = m.usage;
+    const n = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.output_tokens || 0);
+    out[fam] ??= { main: 0, sub: 0 };
+    out[fam][d.isSidechain ? 'sub' : 'main'] += n;
+  }
+  return out;
+}
+
+function readTokens(since, dir = path.join(os.homedir(), '.claude', 'projects')) {
+  const total = {};
+  const cut = Date.parse(since);
+  try {
+    for (const p of fs.readdirSync(dir)) {
+      for (const f of fs.readdirSync(path.join(dir, p))) {
+        if (!f.endsWith('.jsonl')) continue;
+        const file = path.join(dir, p, f);
+        if (fs.statSync(file).mtimeMs < cut) continue;
+        const t = tokensByModel(fs.readFileSync(file, 'utf8').split('\n'), since);
+        for (const [fam, v] of Object.entries(t)) {
+          total[fam] ??= { main: 0, sub: 0 };
+          total[fam].main += v.main;
+          total[fam].sub += v.sub;
+        }
+      }
+    }
+  } catch { /* no transcripts */ }
+  return total;
+}
+
+function printTokens(t) {
+  const all = Object.values(t).reduce((a, v) => a + v.main + v.sub, 0) || 1;
+  const M = (n) => `${(n / 1e6).toFixed(1)} M`;
+  console.log('tokens por modelo (sesión / subagentes):');
+  for (const fam of FAMILIES) {
+    const v = t[fam] || { main: 0, sub: 0 };
+    console.log(`  ${fam.padEnd(7)} ${M(v.main + v.sub).padStart(8)} · ${Math.round((100 * (v.main + v.sub)) / all)}%  (sesión ${M(v.main)}, subagentes ${M(v.sub)})`);
+  }
+}
+
 function print(s) {
   const kv = (o, f = (v) => v) => Object.entries(o).map(([k, v]) => `${k}: ${f(v)}`).join(', ') || '-';
   const rt = (v) => `${v.followed}/${v.recommended} (${v.rate}%)`;
@@ -96,5 +149,6 @@ if (require.main === module) {
     rows = fs.readFileSync(log.FILE, 'utf8').split('\n').flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
   } catch { /* no log yet */ }
   print(summarize(rows, since));
+  printTokens(readTokens(since));
 }
-module.exports = { summarize, parseSince };
+module.exports = { summarize, parseSince, tokensByModel, readTokens };

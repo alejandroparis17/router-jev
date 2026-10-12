@@ -77,3 +77,33 @@ test('report counts thinking phases and Opus sessions only among classifications
   assert.match(result.stdout, /^fases decidir→implementar: 2$/m);
   assert.match(result.stdout, /^sesión en opus: 2 de 4 clasificados$/m);
 });
+
+const { tokensByModel, readTokens } = require('../report');
+const fs2 = require('fs'), os2 = require('os'), path2 = require('path');
+const tline = (model, side, ts, u) => JSON.stringify({ type: 'assistant', isSidechain: side, timestamp: ts, message: { model, usage: { input_tokens: u[0], cache_creation_input_tokens: u[1], cache_read_input_tokens: 999999, output_tokens: u[2] }, content: [{ type: 'text', text: 'SECRET TEXT' }] } });
+
+test('tokensByModel counts new input + cache writes + output per family, split main session vs subagents', () => {
+  const lines = [
+    tline('claude-opus-5-5', false, '2026-10-10T01:00:00Z', [10, 20, 30]),
+    tline('claude-sonnet-5-5', false, '2026-10-10T01:01:00Z', [1, 2, 3]),
+    tline('claude-haiku-4-5-20251001', true, '2026-10-10T01:02:00Z', [5, 0, 5]),
+    tline('claude-sonnet-5-5', true, '2026-10-10T01:03:00Z', [4, 0, 4]),
+    tline('claude-opus-5-5', false, '2026-10-01T01:00:00Z', [100, 100, 100]),
+    tline('<synthetic>', false, '2026-10-10T01:04:00Z', [7, 7, 7]),
+    'not json', JSON.stringify({ type: 'user' }),
+  ];
+  const t = tokensByModel(lines, '2026-10-08');
+  assert.deepEqual(t.opus, { main: 60, sub: 0 });
+  assert.deepEqual(t.sonnet, { main: 6, sub: 8 });
+  assert.deepEqual(t.haiku, { main: 0, sub: 10 });
+  assert.equal(t.other, undefined);
+  assert.equal(JSON.stringify(t).includes('SECRET'), false);
+});
+
+test('readTokens reads every project transcript newer than since and tolerates a missing dir', () => {
+  const dir = fs2.mkdtempSync(path2.join(os2.tmpdir(), 'router-tok-'));
+  fs2.mkdirSync(path2.join(dir, 'p1'));
+  fs2.writeFileSync(path2.join(dir, 'p1', 'a.jsonl'), tline('claude-opus-5-5', false, '2026-10-10T01:00:00Z', [1, 1, 1]) + '\n');
+  assert.equal(readTokens('2026-10-08', dir).opus.main, 3);
+  assert.deepEqual(readTokens('2026-10-08', path2.join(dir, 'nope')), {});
+});
