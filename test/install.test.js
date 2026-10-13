@@ -31,7 +31,7 @@ test('withSection appends once and replaces in place afterwards', () => {
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { main } = require('../install');
+const { main, planAgents } = require('../install');
 const S = '<!-- router:start -->', E = '<!-- router:end -->';
 
 test('withSection refuses broken markers', () => {
@@ -122,10 +122,33 @@ test('the section makes delegation the default and explains unavailable agents',
 
 test('the section explains written decisions, verbatim handoff, thinking only, tier and the one-time nudge', () => {
   for (const text of ['decidir:', 'Paso 1', 'Paso 2', 'codex-astra', 'dispatch.js', 'claude-opus',
-    'model opus', 'SOLO una conclusión escrita', 'recomendación', 'razones', 'opciones descartadas',
+    'router-pensador', 'SOLO una conclusión escrita', 'recomendación', 'razones', 'opciones descartadas',
     'decisiones exactas', 'sin código ni ediciones de archivos', 'conversación',
     'literalmente', 'implementar:', 'solo pensar', 'sesión en opus: /model sonnet',
-    'una sola vez', 'claude-haiku', 'tier', 'model haiku']) {
+    'una sola vez', 'claude-haiku', 'router-ligero']) {
     assert.ok(SECTION.includes(text), text);
   }
+});
+
+test('the router subagents are installed into agents/ and a foreign file with the same name is never overwritten', () => {
+  const d = tmp('{}', '# mío\n');
+  quiet(() => main(true, d));
+  for (const [name, model] of [['router-ligero', 'haiku'], ['router-pensador', 'opus']]) {
+    const t = fs.readFileSync(path.join(d, 'agents', `${name}.md`), 'utf8');
+    assert.match(t, new RegExp(`^---\\nname: ${name}\\n`));
+    assert.match(t, new RegExp(`\\nmodel: ${model}\\n`));
+    assert.match(t, /router-managed/);
+  }
+  const foreign = tmp('{}', '# mío\n');
+  fs.mkdirSync(path.join(foreign, 'agents'));
+  fs.writeFileSync(path.join(foreign, 'agents', 'router-ligero.md'), 'MIO');
+  quiet(() => main(true, foreign));
+  assert.equal(fs.readFileSync(path.join(foreign, 'agents', 'router-ligero.md'), 'utf8'), 'MIO');
+  assert.ok(fs.existsSync(path.join(foreign, 'agents', 'router-pensador.md')));
+  assert.deepEqual(planAgents(foreign).map((a) => [a.name, a.action]), [['router-ligero', 'skip-foreign'], ['router-pensador', 'same']]);
+});
+
+test('the section names the router subagents instead of generic models', () => {
+  assert.match(SECTION, /router-ligero/);
+  assert.match(SECTION, /router-pensador/);
 });

@@ -13,11 +13,11 @@ const SECTION = `${START}
 
 Un hook añade a veces una línea \`[router] → <agente> · <tipo> · peso N …\`. Es un consejo, no una orden.
 
-- Si tras \`[router] →\` la línea empieza por \`decidir:\`, delega en dos pasos. Paso 1: envía al agente de decidir (\`codex-astra\` mediante \`dispatch.js\`, o \`claude-opus\` con la herramienta Agent y \`model opus\`) un encargo autocontenido con todo lo necesario de la conversación que pida SOLO una conclusión escrita: la recomendación, las razones, las opciones descartadas y las decisiones exactas que debe seguir quien implemente; sin código ni ediciones de archivos. Paso 2: incluye esa conclusión literalmente en el encargo de implementación y delega según el agente de \`implementar:\`. Si aparece \`solo pensar\`, haz solo el Paso 1 y comunica la conclusión a la persona; si \`implementar: session\`, aplica tú la conclusión.
+- Si tras \`[router] →\` la línea empieza por \`decidir:\`, delega en dos pasos. Paso 1: envía al agente de decidir (\`codex-astra\` mediante \`dispatch.js\`, o \`claude-opus\` lanzando el subagente \`router-pensador\`) un encargo autocontenido con todo lo necesario de la conversación que pida SOLO una conclusión escrita: la recomendación, las razones, las opciones descartadas y las decisiones exactas que debe seguir quien implemente; sin código ni ediciones de archivos. Paso 2: incluye esa conclusión literalmente en el encargo de implementación y delega según el agente de \`implementar:\`. Si aparece \`solo pensar\`, haz solo el Paso 1 y comunica la conclusión a la persona; si \`implementar: session\`, aplica tú la conclusión.
 - Si la línea contiene \`sesión en opus: /model sonnet\`, indica a la persona una sola vez, brevemente, que esta conversación podría ejecutarse en Sonnet.
-- Un agente \`claude-haiku\` con motivo \`tier\` se ejecuta con la herramienta Agent y \`model haiku\`.
+- Un agente \`claude-haiku\` (motivo \`tier\` o no) se ejecuta lanzando el subagente \`router-ligero\` con un encargo completo; no lo hagas tú.
 - \`sesión actual\`: sigue tú; no delegues.
-- \`claude-haiku\`, \`claude-sonnet\`, \`claude-opus\`: lanza un subagente con la herramienta Agent y ese \`model\`.
+- \`claude-haiku\` → subagente \`router-ligero\`; \`claude-opus\` → subagente \`router-pensador\`; \`claude-sonnet\` → un subagente general con \`model sonnet\`. Lánzalos con la herramienta Agent y un encargo completo.
 - \`codex-reserve\`, \`codex-astra\`, \`agy-flash\`, \`agy-opus\`: **delegar es lo predeterminado.** Escribe el encargo (objetivo, zona del repo, lo decidido en la conversación, criterio de hecho comprobable y las skills que se nombren) y ejecuta \`node ~/.claude/router/dispatch.js <agente> --cwd <repo>\` con el encargo por stdin. Mientras trabaja, no hagas tú la misma tarea. Lee el JSON que devuelve, revisa el resultado y haz commit solo si la persona lo pidió. Solo te la quedas si la persona dijo "hazlo tú", si ya la tienes a medio hacer en esta sesión, o si no puedes escribir un encargo completo; en ese caso dilo en una línea con el motivo.
 - \`agy-flash\`, \`agy-opus\`: devuelven el resultado como texto (no editan archivos); guárdalo tú y revísalo.
 - \`encargo autocontenido\`: la tarea depende de lo hablado antes. El agente delegado no tiene esa conversación, y tú sí: escribe en el encargo todo lo que necesita (qué se decidió, qué archivos, qué ya existe, criterio de hecho). Si no puedes dejarlo completo, hazlo tú.
@@ -68,6 +68,23 @@ function atomicWrite(file, data) {
   fs.renameSync(tmp, file);
 }
 
+const AGENT_SRC = path.join(__dirname, 'agents');
+const MANAGED = 'router-managed';
+
+// Installs the router's own subagents; a file of the same name that this router did not write is never touched.
+function planAgents(dir, src = AGENT_SRC) {
+  let names = [];
+  try { names = fs.readdirSync(src).filter((f) => f.endsWith('.md')).sort(); } catch { /* no agents shipped */ }
+  return names.map((f) => {
+    const want = fs.readFileSync(path.join(src, f), 'utf8');
+    const dest = path.join(dir, 'agents', f);
+    let have = null;
+    try { have = fs.readFileSync(dest, 'utf8'); } catch { /* not installed yet */ }
+    const action = have === null ? 'create' : have === want ? 'same' : have.includes(MANAGED) ? 'update' : 'skip-foreign';
+    return { name: f.replace(/\.md$/, ''), dest, want, action };
+  });
+}
+
 function main(apply, dir = CLAUDE_DIR) {
   const settingsFile = path.join(dir, 'settings.json');
   const claudeFile = path.join(dir, 'CLAUDE.md');
@@ -85,12 +102,15 @@ function main(apply, dir = CLAUDE_DIR) {
   const settingsChanged = nextSettings !== settings;
   const claudeChanged = nextClaude !== claude;
   const reposMissing = !fs.existsSync(reposFile);
+  const agents = planAgents(dir);
+  const agentsToWrite = agents.filter((a) => a.action === 'create' || a.action === 'update');
 
   console.log(`settings.json: ${settingsChanged ? `añade UserPromptSubmit → ${command}` : 'ya tiene el hook'}`);
   console.log(`CLAUDE.md: ${claudeChanged ? 'añade o actualiza la sección "Router de agentes (Jev)"' : 'sin cambios'}`);
   console.log(`repos.json: ${reposMissing ? `se crea con ${repos}` : 'ya existe'}`);
+  console.log(`subagentes: ${agents.map((a) => `${a.name} (${a.action})`).join(', ') || 'ninguno'}`);
   if (!apply) return console.log('\nSimulación. Para escribirlo: node install.js --apply');
-  if (!settingsChanged && !claudeChanged && !reposMissing) return console.log('\nNada que hacer.');
+  if (!settingsChanged && !claudeChanged && !reposMissing && !agentsToWrite.length) return console.log('\nNada que hacer.');
 
   if (settingsChanged) {
     const bak = backup(settingsFile);
@@ -101,6 +121,10 @@ function main(apply, dir = CLAUDE_DIR) {
   if (claudeChanged) {
     if (hadClaude) backup(claudeFile);
     atomicWrite(claudeFile, nextClaude);
+  }
+  for (const a of agentsToWrite) {
+    fs.mkdirSync(path.dirname(a.dest), { recursive: true });
+    atomicWrite(a.dest, a.want);
   }
   if (reposMissing) {
     fs.mkdirSync(path.dirname(reposFile), { recursive: true });
@@ -113,4 +137,4 @@ if (require.main === module) {
   try { main(process.argv.includes('--apply')); }
   catch (e) { console.error(`Error: ${e.message}`); process.exit(1); }
 }
-module.exports = { addHook, withSection, SECTION, main };
+module.exports = { addHook, withSection, SECTION, main, planAgents };
