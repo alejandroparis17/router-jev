@@ -117,3 +117,19 @@ test('readTokens also reads subagent transcripts under <session>/subagents and c
   assert.deepEqual(t.haiku, { main: 0, sub: 6 });
   assert.deepEqual(t.sonnet, { main: 3, sub: 0 });
 });
+
+test('the report counts real delegations by agent, repo and failure reason', () => {
+  const ts = '2026-10-20T00:00:00Z';
+  const rows = [
+    { ts, event: 'dispatch', agent: 'codex-astra', repo: 'NORTH', ok: true, ms: 60000 },
+    { ts, event: 'dispatch', agent: 'codex-astra', repo: 'NORTH-react-m1', ok: false, ms: 1000, reason: 'agent-error' },
+    { ts, event: 'dispatch', agent: 'agy-flash', repo: 'arnes', ok: true, ms: 1000 },
+    { ts, event: 'dispatch', agent: 'codex-review', repo: 'NORTH', ok: false, ms: 1000 },
+    { ts: '2026-10-01T00:00:00Z', event: 'dispatch', agent: 'codex-astra', repo: 'old', ok: true, ms: 1 },
+  ];
+  const s = summarize(rows, '2026-10-13');
+  assert.deepEqual(s.delegations.byAgent, { 'codex-astra': 2, 'agy-flash': 1, 'codex-review': 1 });
+  assert.deepEqual(s.delegations.byRepo, { NORTH: 3, arnes: 1 });
+  assert.deepEqual(s.delegations.failReasons, { 'agent-error': 1, 'sin registrar': 1 });
+  assert.equal(s.delegations.total, 4);
+});

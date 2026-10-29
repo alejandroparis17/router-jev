@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { AGENTS, run, noteQuota, minimalEnv, FOOTER } = require('../dispatch');
+const { AGENTS, run, noteQuota, minimalEnv, FOOTER, failReason } = require('../dispatch');
 
 const node = (script, stdin) => ({ cmd: process.execPath, args: ['-e', script], stdin });
 
@@ -182,4 +182,17 @@ test('dispatch logs a start event before running, so a long run is not mistaken 
   assert.equal(r.status, 0);
   const events = fs.readFileSync(path.join(home, 'log.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l).event);
   assert.deepEqual(events, ['dispatch-start', 'dispatch']);
+});
+
+test('failReason names the cause of a failed run without keeping its text', () => {
+  const f = (err, extra = {}) => failReason({ ok: false, code: 1, out: '', err, ...extra });
+  assert.equal(failReason({ ok: true, code: 0, out: 'x', err: 'quota' }), null);
+  assert.equal(f('ERROR: Your workspace is out of credits.'), 'quota');
+  assert.equal(f('HTTP 401 Unauthorized: please log in'), 'auth');
+  assert.equal(f('something\ntimeout'), 'timeout');
+  assert.equal(f("The 'gpt-6-astra' model requires a newer version of Codex."), 'version');
+  assert.equal(f('Not inside a trusted directory and --skip-git-repo-check was not specified.'), 'not-a-repo');
+  assert.equal(f('spawn codex ENOENT', { code: null }), 'missing-binary');
+  assert.equal(f('', { out: 'some long work output' }), 'agent-error');
+  assert.equal(f('panic: boom'), 'agent-error');
 });

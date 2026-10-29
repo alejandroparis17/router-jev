@@ -19,6 +19,19 @@ const COOLDOWN_MS = 6 * 3600e3;
 // A failed run that says it is out of quota marks the agent's family unavailable for 6 hours;
 // route.js reads the file and routes around it. Only a short run's stderr tail counts: a long
 // output that merely mentions "quota" (a test log, say) is not a quota error. Never throws.
+// Why a run failed, as a category only: the log never keeps the agent's text.
+function failReason(r) {
+  if (r.ok) return null;
+  const e = String(r.err || '').slice(-500);
+  if (/\btimeout$/.test(e.trim())) return 'timeout';
+  if (OUT_OF_QUOTA.test(e)) return 'quota';
+  if (/\b401\b|unauthori[sz]ed|not logged in|please log ?in|authenticat/i.test(e)) return 'auth';
+  if (/requires a newer version|unsupported model|model .{0,40}not (found|supported)/i.test(e)) return 'version';
+  if (/not inside a trusted directory|not a git repository/i.test(e)) return 'not-a-repo';
+  if (r.code === null && /ENOENT/.test(e)) return 'missing-binary';
+  return 'agent-error';
+}
+
 function noteQuota(agent, r, home = log.HOME, now = Date.now()) {
   try {
     if (r.ok || (r.out || '').length >= 200 || !OUT_OF_QUOTA.test(String(r.err || '').slice(-500))) return false;
@@ -118,9 +131,10 @@ async function main(argv) {
     const r = await run(build({ cwd, outFile, brief }), brief, { cwd });
     let text = r.out;
     try { text = fs.readFileSync(outFile, 'utf8'); } catch { /* agent wrote to stdout */ }
-    log.append({ event: 'dispatch', agent, repo: path.basename(cwd), ok: r.ok, code: r.code, ms: r.ms });
+    const reason = failReason(r);
+    log.append({ event: 'dispatch', agent, repo: path.basename(cwd), ok: r.ok, code: r.code, ms: r.ms, ...(reason && { reason }) });
     const unavailable = noteQuota(agent, { ...r, out: text });
-    process.stdout.write(JSON.stringify({ agent, ok: r.ok, code: r.code, ms: r.ms, output: text.slice(-20000), error: r.err, ...(unavailable && { unavailable: true }) }) + '\n');
+    process.stdout.write(JSON.stringify({ agent, ok: r.ok, code: r.code, ms: r.ms, ...(reason && { reason }), output: text.slice(-20000), error: r.err, ...(unavailable && { unavailable: true }) }) + '\n');
     return r.ok ? 0 : 1;
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -128,4 +142,4 @@ async function main(argv) {
 }
 
 if (require.main === module) main(process.argv.slice(2)).catch((e) => fail(String(e && e.message || e))).then((c) => process.exit(c));
-module.exports = { AGENTS, run, withFooter, noteQuota, minimalEnv, FOOTER };
+module.exports = { AGENTS, run, withFooter, noteQuota, failReason, minimalEnv, FOOTER };

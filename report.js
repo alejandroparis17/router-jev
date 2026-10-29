@@ -43,6 +43,16 @@ function summarize(rows, sinceIso) {
     q.count++;
     q.minutes += (r.ms || 0) / 60000;
   }
+  // Real delegations, the reliable number: a worktree (NORTH-react-m1) counts under its repo (NORTH).
+  const disp = ev('dispatch');
+  const names = [...new Set(disp.map((r) => r.repo).filter(Boolean))];
+  const repoOf = (n) => (n ? names.filter((x) => x !== n && n.startsWith(x + '-')).sort((a, b) => a.length - b.length)[0] || n : 'sin repo');
+  const delegations = {
+    total: disp.length,
+    byAgent: count(disp, (r) => r.agent),
+    byRepo: count(disp, (r) => repoOf(r.repo)),
+    failReasons: count(disp.filter((r) => r.ok === false), (r) => r.reason || 'sin registrar'),
+  };
   const ms = cls.map((r) => r.ms).filter(Number.isFinite);
   return {
     since: sinceIso,
@@ -59,6 +69,7 @@ function summarize(rows, sinceIso) {
     byWeight: rate((r) => r.peso),
     byQuota,
     failed: ev('dispatch').filter((r) => r.ok === false).length,
+    delegations,
     avgMs: ms.length ? Math.round(ms.reduce((a, b) => a + b, 0) / ms.length) : 0,
   };
 }
@@ -139,13 +150,12 @@ function print(s) {
   console.log(`sesión en opus: ${s.opusSessions} de ${s.classified} clasificados`);
   console.log(`saltados:                 ${kv(s.skipped)}`);
   console.log(`decisiones:               ${kv(s.decisions)}`);
-  console.log(`recomendaciones delegar:  ${s.recommended} · seguidas ${s.followed} · ignoradas ${s.ignored} · ${s.followRate}% seguidas`);
-  console.log(`seguidas por familia:     ${kv(s.byFamily, rt)}`);
-  console.log(`seguidas por peso:        ${kv(s.byWeight, rt)}`);
-  console.log(`Claude Pro:               ${q.claude.count} decisiones/usos`);
-  console.log(`Codex Pro:                ${m(q.codex)}`);
-  console.log(`Google AI Pro:            ${m(q.google)}`);
-  console.log(`delegaciones fallidas:    ${s.failed}`);
+  console.log(`delegaciones reales:      ${s.delegations.total} · fallidas ${s.failed}`);
+  console.log(`  por agente:             ${kv(s.delegations.byAgent)}`);
+  console.log(`  por repo:               ${kv(s.delegations.byRepo)}`);
+  console.log(`  motivos de fallo:       ${kv(s.delegations.failReasons)}`);
+  console.log(`minutos por cuota:        Codex Pro ${m(q.codex)} · Google AI Pro ${m(q.google)}`);
+  console.log(`recomendaciones delegar:  ${s.recommended} (el % de seguidas no es fiable: worktrees y delegaciones pedidas a mano no se emparejan)`);
   console.log(`latencia media del hook:  ${s.avgMs} ms`);
 }
 
