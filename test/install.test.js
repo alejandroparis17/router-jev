@@ -107,28 +107,8 @@ test('main keeps a 0600 original at 0600, creates new files 0600, and never echo
   assert.ok(!msg.includes('FAKESECRET') && !msg.includes('oops'), msg);
 });
 
-test('the section asks for a stated reason when a recommendation is not followed, and no --record when keeping the task', () => {
-  assert.match(SECTION, /dilo en una línea con el motivo/);
-  assert.doesNotMatch(SECTION, /quedarte la tarea, registra/);
-  assert.match(SECTION, /no registres nada/);
-});
 
-test('the section makes delegation the default and explains unavailable agents', () => {
-  assert.match(SECTION, /delegar es lo predeterminado/);
-  assert.match(SECTION, /dilo en una línea con el motivo/);
-  assert.match(SECTION, /unavailable: true.*de 6 a 24 horas y recomendará claude-opus .*o claude-sonnet; usa ese o hazlo tú/);
-  assert.match(SECTION, /devuelven el resultado como texto \(no editan archivos\); guárdalo tú y revísalo/);
-});
 
-test('the section explains written decisions, verbatim handoff, thinking only, tier and the one-time nudge', () => {
-  for (const text of ['decidir:', 'Paso 1', 'Paso 2', 'codex-astra', 'dispatch.js', 'claude-opus',
-    'router-pensador', 'SOLO una conclusión escrita', 'recomendación', 'razones', 'opciones descartadas',
-    'decisiones exactas', 'sin código ni ediciones de archivos', 'conversación',
-    'literalmente', 'implementar:', 'solo pensar', 'sesión en opus: /model sonnet',
-    'una sola vez', 'claude-haiku', 'router-ligero']) {
-    assert.ok(SECTION.includes(text), text);
-  }
-});
 
 test('the router subagents are installed into agents/ and a foreign file with the same name is never overwritten', () => {
   const d = tmp('{}', '# mío\n');
@@ -148,7 +128,34 @@ test('the router subagents are installed into agents/ and a foreign file with th
   assert.deepEqual(planAgents(foreign).map((a) => [a.name, a.action]), [['router-ligero', 'skip-foreign'], ['router-pensador', 'same']]);
 });
 
-test('the section names the router subagents instead of generic models', () => {
-  assert.match(SECTION, /router-ligero/);
-  assert.match(SECTION, /router-pensador/);
+
+test('the router-jev skill is installed into skills/router-jev and a foreign skill with that name is never overwritten', () => {
+  const d = tmp('{}', '# mío\n');
+  quiet(() => main(true, d));
+  const t = fs.readFileSync(path.join(d, 'skills', 'router-jev', 'SKILL.md'), 'utf8');
+  assert.match(t, /^---\nname: router-jev\n/);
+  assert.match(t, /router-managed/);
+  const foreign = tmp('{}', '# mío\n');
+  fs.mkdirSync(path.join(foreign, 'skills', 'router-jev'), { recursive: true });
+  fs.writeFileSync(path.join(foreign, 'skills', 'router-jev', 'SKILL.md'), 'MIO');
+  quiet(() => main(true, foreign));
+  assert.equal(fs.readFileSync(path.join(foreign, 'skills', 'router-jev', 'SKILL.md'), 'utf8'), 'MIO');
+});
+
+const SKILL = fs.readFileSync(path.join(__dirname, '..', 'skills', 'router-jev', 'SKILL.md'), 'utf8');
+
+test('the CLAUDE.md section is a short pointer: follow by default, load router-jev, state the reason, never secrets', () => {
+  assert.ok(SECTION.split(/\s+/).length < 120, 'loaded in every session: keep it short');
+  for (const text of ['Seguirla es lo predeterminado', 'router-jev', 'sesión actual', 'dilo en una línea con el motivo', 'hazlo tú', 'secretos']) {
+    assert.ok(SECTION.includes(text), text);
+  }
+});
+
+test('the router-jev skill carries the full procedure', () => {
+  assert.match(SKILL, /^---\nname: router-jev\ndescription: Use when /);
+  for (const text of ['router-ligero', 'router-pensador', 'dispatch.js', 'decidir:', 'Paso 1', 'Paso 2', 'SOLO una conclusión escrita',
+    'literal', 'solo pensar', 'encargo autocontenido', 'revisa:', 'sube a:', 'sesión en opus: /model sonnet',
+    'unavailable: true', 'model: opus', '--record', 'Lo decidido en la conversación', 'Criterio de hecho', 'hazlo tú', 'report.js']) {
+    assert.ok(SKILL.includes(text), text);
+  }
 });
