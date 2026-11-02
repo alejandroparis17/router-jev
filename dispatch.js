@@ -39,7 +39,11 @@ function noteQuota(agent, r, home = log.HOME, now = Date.now()) {
     let marks = {};
     try { marks = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* none yet */ }
     if (!marks || typeof marks !== 'object' || Array.isArray(marks)) marks = {};
-    marks[agent.split('-')[0]] = new Date(now + COOLDOWN_MS).toISOString();
+    const fam = agent.split('-')[0];
+    // Out again within a day of the last mark expiring: the plan is spent, not throttled; wait a day.
+    const last = Date.parse(marks[fam]);
+    const ms = Number.isFinite(last) && now - last < 24 * 3600e3 ? 24 * 3600e3 : COOLDOWN_MS;
+    marks[fam] = new Date(now + ms).toISOString();
     fs.mkdirSync(home, { recursive: true, mode: 0o700 });
     fs.writeFileSync(file, JSON.stringify(marks), { mode: 0o600 });
     fs.chmodSync(file, 0o600);

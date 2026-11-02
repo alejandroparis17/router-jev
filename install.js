@@ -23,7 +23,7 @@ Un hook añade a veces una línea \`[router] → <agente> · <tipo> · peso N �
 - \`encargo autocontenido\`: la tarea depende de lo hablado antes. El agente delegado no tiene esa conversación, y tú sí: escribe en el encargo todo lo que necesita (qué se decidió, qué archivos, qué ya existe, criterio de hecho). Si no puedes dejarlo completo, hazlo tú.
 - \`revisa: X\`: al recibir el trabajo, pide esa revisión (\`codex-review\` es \`dispatch.js codex-review\`; \`claude-sonnet\` es un subagente Sonnet).
 - Si el agente falla o no cumple el criterio de hecho, sube a \`sube a: Y\` (máximo 2 subidas). Si no hay más, hazlo tú.
-- Si \`dispatch.js\` devuelve \`unavailable: true\`, ese agente se quedó sin cuota: el router lo evitará unas horas y recomendará claude-sonnet; usa ese o hazlo tú.
+- Si \`dispatch.js\` devuelve \`unavailable: true\`, ese agente se quedó sin cuota: el router lo evitará de 6 a 24 horas y recomendará claude-opus (si perdió codex-astra o agy-opus; un subagente general con \`model opus\`) o claude-sonnet; usa ese o hazlo tú.
 - Si la persona dice "hazlo tú", no delegues. Nunca pongas secretos en un encargo.
 - Si delegas con la herramienta Agent, registra el agente usado: \`node ~/.claude/router/dispatch.js --record <agente>\`. Si te quedas la tarea no registres nada: el hook anota solo las recomendaciones no seguidas.
 - Si no sigues una recomendación de delegar, dilo en una línea con el motivo (por ejemplo: "es investigación, no revisión").

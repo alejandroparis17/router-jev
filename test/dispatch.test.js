@@ -196,3 +196,16 @@ test('failReason names the cause of a failed run without keeping its text', () =
   assert.equal(f('', { out: 'some long work output' }), 'agent-error');
   assert.equal(f('panic: boom'), 'agent-error');
 });
+
+test('a family that runs out of quota again soon after its mark expired is marked for 24 h, not 6', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'router-q-'));
+  const r = { ok: false, code: 1, out: '', err: 'ERROR: Your workspace is out of credits.' };
+  const now = Date.parse('2026-11-02T10:00:00Z');
+  const mark = () => JSON.parse(fs.readFileSync(path.join(home, 'unavailable.json'), 'utf8')).codex;
+  noteQuota('codex-astra', r, home, now);
+  assert.equal(mark(), '2026-11-02T16:00:00.000Z');
+  noteQuota('codex-astra', r, home, Date.parse('2026-11-02T17:00:00Z'));
+  assert.equal(mark(), '2026-11-03T17:00:00.000Z');
+  noteQuota('codex-astra', r, home, Date.parse('2026-11-06T09:00:00Z'));
+  assert.equal(mark(), '2026-11-06T15:00:00.000Z', 'after a long quiet spell it is 6 h again');
+});

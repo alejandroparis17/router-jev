@@ -78,7 +78,9 @@ function down(family, now = Date.now()) {
 function avoidDownAgent(d, j) {
   const fam = d.agent.split('-')[0];
   if ((fam !== 'codex' && fam !== 'agy') || !down(fam)) return d;
-  return { ...d, agent: 'claude-sonnet', why: 'no-quota', skills: [], reviewer: null, up: null, context: d.context, fallbackFrom: d.agent };
+  // Keep the tier that was lost: the strong rung (astra, agy-opus) falls to Opus, the cheap one to Sonnet.
+  const strong = d.agent === 'codex-astra' || d.agent === 'agy-opus';
+  return { ...d, agent: strong ? 'claude-opus' : 'claude-sonnet', why: 'no-quota', skills: [], reviewer: null, up: null, context: d.context, fallbackFrom: d.agent };
 }
 
 function line(d, j) {
