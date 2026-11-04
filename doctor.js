@@ -17,6 +17,8 @@ function atLeast(v, min) {
 }
 
 // Exact command under hooks.UserPromptSubmit, not a substring of the file.
+const guardInstalled = (settings, command) =>
+  ['PreToolUse', 'Stop'].every((e) => Array.isArray(settings?.hooks?.[e]) && settings.hooks[e].some((g) => g?.hooks?.some((h) => h?.command === command)));
 const hookInstalled = (settings, command) =>
   Array.isArray(settings?.hooks?.UserPromptSubmit) &&
   settings.hooks.UserPromptSubmit.some((g) => g?.hooks?.some((h) => h?.command === command));
@@ -30,6 +32,7 @@ const checks = [
   ['Jev key in the Keychain', () => Boolean(getKey())],
   ['repos.json lists at least one path', () => JSON.parse(fs.readFileSync(path.join(log.HOME, 'repos.json'), 'utf8')).repos.length > 0],
   ['hook installed in settings.json', () => hookInstalled(JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', 'settings.json'), 'utf8')), `node ${path.join(os.homedir(), '.claude', 'router', 'route.js')}`)],
+  ['guard installed in settings.json', () => guardInstalled(JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', 'settings.json'), 'utf8')), `node ${path.join(os.homedir(), '.claude', 'router', 'guard.js')}`)],
 ];
 
 if (require.main === module) {
@@ -43,4 +46,4 @@ if (require.main === module) {
   process.exit(bad ? 1 : 0);
 }
 
-module.exports = { atLeast, hookInstalled };
+module.exports = { atLeast, hookInstalled, guardInstalled };

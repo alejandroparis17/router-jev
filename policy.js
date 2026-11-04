@@ -7,7 +7,7 @@ const MIN_DECIDE = 0.5;
 const MAX_RISK = 0.3;
 const MAX_DEPENDS = 0.4;
 
-// agy returns text but does not edit files, so only 'escribir' (text out) goes there.
+// agy's first rung is 'escribir'; it also takes over building when Codex runs out (see route.js).
 // Ordered cheapest to most capable: [agent, heaviest weight it takes].
 const LADDERS = {
   // a small question is answered in the session: a subagent costs more than the answer

@@ -165,10 +165,39 @@ test('noteQuota replaces a non-object unavailable.json and never throws', () => 
   assert.equal(noteQuota('codex-astra', hit, path.join(blocker, 'sub')), false);
 });
 
-test('agy briefs say they cannot edit files; codex briefs do not', () => {
-  const { withFooter } = require('../dispatch');
-  assert.match(withFooter('agy-opus', 'hola'), /You cannot edit files in this mode\. Return the complete result \(the full text or the full code\) in your reply; the caller will save it\.\n\nDo not run git commit/);
+test('agy briefs say they may edit but not run commands; codex briefs do not', () => {
+  const { withFooter, AGY_NOTE } = require('../dispatch');
+  assert.match(AGY_NOTE, /can edit files inside the current directory[\s\S]*cannot run terminal commands/);
+  assert.equal(withFooter('agy-opus', 'hola'), 'hola' + AGY_NOTE + FOOTER);
   assert.equal(withFooter('codex-astra', 'hola'), 'hola' + FOOTER);
+});
+
+test('agy is confined to the workspace for this run only, and thinking gets no write access', () => {
+  const { AGENTS } = require('../dispatch');
+  const o = { brief: 'b', cwd: '/r', outFile: '/o' };
+  const args = AGENTS['agy-flash'](o).args;
+  assert.equal(args[args.indexOf('--settings') + 1], '{"allowNonWorkspaceAccess":false}');
+  assert.equal(args[args.indexOf('--mode') + 1], 'accept-edits');
+  const plan = AGENTS['agy-opus']({ ...o, think: true }).args;
+  assert.equal(plan[plan.indexOf('--mode') + 1], 'plan');
+  const codex = AGENTS['codex-astra']({ ...o, think: true }).args;
+  assert.equal(codex[codex.indexOf('-s') + 1], 'read-only');
+  const build = AGENTS['codex-astra'](o).args;
+  assert.equal(build[build.indexOf('-s') + 1], 'workspace-write');
+});
+
+test('agy saying SUCCESS is not success: a denied tool or an empty reply is a failure', () => {
+  const { agyVerdict, failReason } = require('../dispatch');
+  const env = (o) => JSON.stringify({ status: 'SUCCESS', response: 'DONE', ...o });
+  assert.deepEqual(agyVerdict(env({})), { ok: true, text: 'DONE' });
+  const denied = agyVerdict(env({ response: '', denied_actions: [{ action: 'write_file' }] }));
+  assert.equal(denied.ok, false);
+  assert.deepEqual(denied.denied, ['write_file']);
+  assert.equal(failReason({ ok: false, err: denied.err }), 'denied');
+  assert.equal(agyVerdict(env({ response: '  ' })).ok, false);
+  assert.equal(failReason({ ok: false, err: agyVerdict(env({ response: '' })).err }), 'agent-error');
+  assert.equal(agyVerdict(env({ status: 'ERROR' })).ok, false);
+  assert.equal(agyVerdict('not json'), null);
 });
 
 test('dispatch logs a start event before running, so a long run is not mistaken for an ignored recommendation', () => {
@@ -208,4 +237,11 @@ test('a family that runs out of quota again soon after its mark expired is marke
   assert.equal(mark(), '2026-11-03T17:00:00.000Z');
   noteQuota('codex-astra', r, home, Date.parse('2026-11-06T09:00:00Z'));
   assert.equal(mark(), '2026-11-06T15:00:00.000Z', 'after a long quiet spell it is 6 h again');
+});
+
+test('a verdict survives an envelope longer than what is shown', async () => {
+  const { run, agyVerdict } = require('../dispatch');
+  const envelope = JSON.stringify({ status: 'SUCCESS', response: 'x'.repeat(60000), denied_actions: [{ action: 'write_file' }] });
+  const r = await run({ cmd: process.execPath, args: ['-e', `process.stdout.write(${JSON.stringify(envelope)})`], stdin: false }, '', { cwd: process.cwd() });
+  assert.equal(agyVerdict(r.out).ok, false);
 });

@@ -18,14 +18,12 @@ La línea `[router] →` dice qué modelo debe hacer el trabajo según su peso. 
 | `claude-haiku` | Agent con `subagent_type: router-ligero` y un encargo completo. |
 | `claude-opus` | Para decidir: `router-pensador`. Para implementar (motivo `no-quota`): subagente general con `model: opus`. |
 | `claude-sonnet` | Subagente general con `model: sonnet`. |
-| `codex-reserve` · `codex-astra` | `node ~/.claude/router/dispatch.js <agente> --cwd <repo>` con el encargo por stdin. |
-| `agy-flash` · `agy-opus` | Igual que Codex; devuelven texto (no editan): guárdalo tú. |
-| `decidir: X · implementar: Y` | Paso 1: X entrega SOLO una conclusión escrita. Paso 2: esa conclusión, literal, dentro del encargo para Y. `implementar: session` = la aplicas tú. |
+| `codex-reserve` · `codex-astra` · `agy-flash` · `agy-opus` | `node ~/.claude/router/dispatch.js <agente> --cwd <repo>` con el encargo por stdin. Editan dentro del repo; `agy` no puede ejecutar comandos, así que las comprobaciones las ejecutas tú. |
+| `decidir: X · implementar: Y` | Paso 1: X entrega SOLO una conclusión escrita (añade `--think` si X va por `dispatch.js`: sin permiso de escritura). Paso 2: esa conclusión, literal, dentro del encargo para Y. `implementar: session` = la aplicas tú. |
 | `solo pensar (…)` | Solo el paso 1; cuenta la conclusión a la persona. |
 | `encargo autocontenido` | Tú tienes la conversación y el delegado no: el encargo la lleva escrita. |
 | `revisa: X` | Al recibir el trabajo, pide esa revisión (`codex-review` = `dispatch.js codex-review`). |
 | `sube a: Y` | Si falla o no cumple el criterio de hecho, delega en Y (máximo 2 subidas). |
-| `sesión en opus: /model sonnet` | Díselo a la persona una vez, en una línea. |
 
 ## El encargo
 
@@ -40,9 +38,15 @@ Sin secretos. El delegado no hace commit: lo haces tú, y solo si la persona lo 
 
 ## Al recibir el resultado
 
-Lee el JSON de `dispatch.js` (`ok`, `reason`, `output`). Comprueba el criterio de hecho tú mismo. Si `unavailable: true`, ese agente se quedó sin cuota (el router lo evitará de 6 a 24 h): repite el encargo con un subagente general `model: opus` si era `codex-astra` o `agy-opus`, y con `model: sonnet` si era `codex-reserve` o `agy-flash`.
+Lee el JSON de `dispatch.js` (`ok`, `reason`, `output`). Comprueba el criterio de hecho tú mismo: lo que diga el delegado no es prueba. Si `unavailable: true`, ese agente se quedó sin cuota: repite el encargo con `agy-opus` si era `codex-astra`, con `agy-flash` si era `codex-reserve`; si Antigravity tampoco puede, usa un subagente general con `model: opus` o `model: sonnet`, el mismo nivel.
 
 Si delegaste con la herramienta Agent, registra el agente usado: `node ~/.claude/router/dispatch.js --record <agente>`.
+
+Si el resultado empieza por `ESCALATE:`, el delegado paró porque no era lo que parecía: pásalo al `sube a:` de la línea o, si no lo hay, un nivel por encima, con esos hechos en el encargo. Una sola subida por este motivo; si vuelve a fallar, cuéntaselo a la persona. Si `reason` es `denied`, no era falta de capacidad sino de permiso: mira `denied` y `git status`, y no subas de modelo.
+
+## Si el guard te bloquea
+
+Mientras haya una delegación pendiente, la sesión puede leer y preparar el encargo, pero no editar el repo. No lo rodees con otro comando. Delega; o si de verdad no procede, ejecuta `node ~/.claude/router/dispatch.js --release <motivo>` (`person`, `in-progress`, `no-brief` o `question`) y dilo en una línea.
 
 ## Excusas que ya se dieron (y su respuesta)
 
@@ -64,4 +68,4 @@ Solo te quedas la tarea si la persona dijo "hazlo tú", si ya la tienes a medio 
 
 ## Comprobar cómo va
 
-`node ~/.claude/router/report.js --since AAAA-MM-DD` (delegaciones reales, fallos y su motivo, tokens por modelo). `node ~/.claude/router/doctor.js` comprueba la instalación.
+`node ~/.claude/router/report.js --since AAAA-MM-DD` (delegaciones reales, fallos, guard, cuota real, tokens por modelo). `node ~/.claude/router/doctor.js` comprueba la instalación.

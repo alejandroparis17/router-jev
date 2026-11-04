@@ -2,3 +2,6 @@
 log.jsonl
 node_modules/
 unavailable.json
+quota.json
+pending/
+guard.json

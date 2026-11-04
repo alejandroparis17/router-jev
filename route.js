@@ -9,6 +9,8 @@ const { skipReason } = require('./prefilter');
 const { classify } = require('./jev');
 const { decide, POLICY_VERSION } = require('./policy');
 const log = require('./log');
+const { setPending } = require('./guard');
+const quota = require('./quota');
 
 const DEADLINE_MS = 3000;
 
@@ -62,30 +64,31 @@ function switchedOff(repo) {
   }
 }
 
-// dispatch.js marks a family (codex/agy) out of quota in unavailable.json until a time.
-// Missing or unparseable = all available; expired marks are ignored.
-function down(family, now = Date.now()) {
+// A fresh reading of the plan decides; without one, dispatch.js's mark in unavailable.json does.
+function down(agent, now = Date.now()) {
+  const known = quota.spent(agent, now);
+  if (known !== null) return known;
   try {
     const file = path.join(log.HOME, 'unavailable.json');
     if (fs.statSync(file).size > 4096) return false; // not ours
-    return Date.parse(JSON.parse(fs.readFileSync(file, 'utf8'))[family]) > now;
+    return Date.parse(JSON.parse(fs.readFileSync(file, 'utf8'))[agent.split('-')[0]]) > now;
   } catch {
     return false;
   }
 }
 
-// A family out of quota is replaced by claude-sonnet (a claude-* agent is never replaced).
-function avoidDownAgent(d, j) {
-  const fam = d.agent.split('-')[0];
-  if ((fam !== 'codex' && fam !== 'agy') || !down(fam)) return d;
-  // Keep the tier that was lost: the strong rung (astra, agy-opus) falls to Opus, the cheap one to Sonnet.
-  const strong = d.agent === 'codex-astra' || d.agent === 'agy-opus';
-  return { ...d, agent: strong ? 'claude-opus' : 'claude-sonnet', why: 'no-quota', skills: [], reviewer: null, up: null, context: d.context, fallbackFrom: d.agent };
+// Keep the tier that was lost, and spend another plan before the scarcest one.
+const ALTERNATIVES = { 'codex-astra': ['agy-opus', 'claude-opus'], 'agy-opus': ['claude-opus'], 'codex-reserve': ['agy-flash', 'claude-sonnet'], 'agy-flash': ['claude-sonnet'] };
+const available = (agent, now) => (ALTERNATIVES[agent] && down(agent, now) ? ALTERNATIVES[agent].find((a) => a.startsWith('claude-') || !down(a, now)) : agent);
+
+function avoidDownAgent(d, now = Date.now()) {
+  const agent = available(d.agent, now);
+  if (agent === d.agent) return d;
+  return { ...d, agent, why: 'no-quota', skills: [], reviewer: null, up: null, context: d.context, fallbackFrom: d.agent };
 }
 
 function line(d, j) {
-  const nudge = d.nudge ? ` · ${d.nudge}` : '';
-  if (!d.think && d.agent === 'session') return `[router] → sesión actual (${d.why}) · ${j.tipo} · peso ${j.peso}${nudge}`;
+  if (!d.think && d.agent === 'session') return `[router] → sesión actual (${d.why}) · ${j.tipo} · peso ${j.peso}`;
   const target = d.think
     ? `decidir: ${d.think} · ${d.why === 'think-only' ? `solo pensar (${j.tipo})` : `implementar: ${d.agent}`}`
     : d.agent;
@@ -94,7 +97,7 @@ function line(d, j) {
   if (d.reviewer) bits.push(`revisa: ${d.reviewer}`);
   if (d.up) bits.push(`sube a: ${d.up}`);
   if (d.context) bits.push('encargo autocontenido');
-  return bits.join(' · ') + nudge;
+  return bits.join(' · ');
 }
 
 // The next prompt settles the previous recommendation: no dispatch or --record after it means it was
@@ -129,30 +132,35 @@ function readStdin() {
 
 async function main() {
   const t0 = Date.now();
-  const { prompt = '', cwd = process.cwd(), transcript_path } = JSON.parse(await readStdin());
+  const { prompt = '', cwd = process.cwd(), transcript_path, session_id } = JSON.parse(await readStdin());
+  // A finished background task arrives as a prompt, but nobody asked anything: it must not reroute.
+  if (/^\s*<task-notification>/.test(prompt)) return;
   const repo = repoRoot(cwd);
   settlePrevious(path.basename(repo));
   const entry = { policy: POLICY_VERSION, repo: path.basename(repo) };
 
   const skip = skipReason(prompt) ?? (!allowed(repo) ? 'repo-not-allowed' : switchedOff(repo) ? 'repo-disabled' : null);
-  if (skip) return log.append({ ...entry, skip, ms: Date.now() - t0 });
+  if (skip) {
+    if (skip !== 'short') setPending(session_id, []); // "dale" continues the last decision; anything else replaces it
+    return log.append({ ...entry, skip, ms: Date.now() - t0 });
+  }
 
   const j = await classify(prompt);
-  if (!j) return log.append({ ...entry, skip: 'jev-unavailable', ms: Date.now() - t0 });
+  if (!j) {
+    setPending(session_id, []);
+    return log.append({ ...entry, skip: 'jev-unavailable', ms: Date.now() - t0 });
+  }
 
-  let d = avoidDownAgent(decide(j), j);
+  let d = avoidDownAgent(decide(j));
   const model = sessionModel(transcript_path);
   if (model === 'opus' && j.tipo !== 'pregunta' && j.peso <= 2 &&
       ((d.agent === 'session' && d.why === 'simple') || (d.agent === 'codex-reserve' && d.why === 'ladder'))) {
     d = { ...d, agent: 'claude-haiku', why: 'tier', skills: [], reviewer: null, up: null };
   }
-  if (model === 'opus' && d.agent === 'session' && ['simple', 'none', 'unsure', 'think-only'].includes(d.why)) {
-    d.nudge = 'sesión en opus: /model sonnet';
-  }
-  if (d.think === 'codex-astra' && down('codex')) {
-    d = { ...d, think: 'claude-opus', thinkFallbackFrom: 'codex-astra' };
-  }
+  if (d.think && available(d.think) !== d.think) d = { ...d, think: available(d.think), thinkFallbackFrom: d.think };
+  quota.refreshIfStale();
   log.append({ ...entry, ...j, sessionModel: model, ...(d.think && { think: d.think }), ...(d.thinkFallbackFrom && { thinkFallbackFrom: d.thinkFallbackFrom }), agent: d.agent, why: d.why, reviewer: d.reviewer, ...(d.fallbackFrom && { fallbackFrom: d.fallbackFrom }), ms: Date.now() - t0 });
+  setPending(session_id, [d.think, d.agent].filter((a) => a && a !== 'session'));
   process.stdout.write(line(d, j) + '\n');
 }
 
@@ -160,4 +168,4 @@ if (require.main === module) {
   const timer = setTimeout(() => process.exit(0), DEADLINE_MS); // armed before any read
   main().catch(() => {}).finally(() => clearTimeout(timer));
 }
-module.exports = { sessionModel };
+module.exports = { sessionModel, down, available, avoidDownAgent };

@@ -29,6 +29,19 @@ function addHook(settings, command) {
   };
 }
 
+// The guard reads tool calls and turn ends. The matcher keeps it off every other tool.
+function addGuard(settings, command) {
+  const add = (event, group) => {
+    const existing = settings.hooks?.[event] ?? [];
+    if (!Array.isArray(existing)) throw new Error(`settings.json: hooks.${event} existe pero no es una lista. Arréglalo a mano antes de instalar.`);
+    if (existing.some((g) => g?.hooks?.some((h) => h?.command === command))) return settings;
+    return { ...settings, hooks: { ...settings.hooks, [event]: [...existing, group] } };
+  };
+  const hook = { hooks: [{ type: 'command', command, timeout: 5 }] };
+  settings = add('PreToolUse', { matcher: 'Edit|Write|NotebookEdit|Bash|Agent|Task', ...hook });
+  return add('Stop', hook);
+}
+
 function withSection(text, section) {
   const count = (m) => text.split(m).length - 1;
   const [ns, ne] = [count(START), count(END)];
@@ -91,7 +104,8 @@ function main(apply, dir = CLAUDE_DIR) {
   let settings;
   try { settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8')); }
   catch { throw new Error(`${settingsFile} no se puede leer o no es JSON válido. No se ha escrito nada.`); }
-  const nextSettings = addHook(settings, command);
+  const guardCommand = `node ${path.join(dir, 'router', 'guard.js')}`;
+  const nextSettings = addGuard(addHook(settings, command), guardCommand);
   const hadClaude = fs.existsSync(claudeFile);
   const claude = hadClaude ? fs.readFileSync(claudeFile, 'utf8') : '';
   const nextClaude = withSection(claude, SECTION);
@@ -102,7 +116,7 @@ function main(apply, dir = CLAUDE_DIR) {
   const agents = [...planAgents(dir), ...planSkills(dir)];
   const agentsToWrite = agents.filter((a) => a.action === 'create' || a.action === 'update');
 
-  console.log(`settings.json: ${settingsChanged ? `añade UserPromptSubmit → ${command}` : 'ya tiene el hook'}`);
+  console.log(`settings.json: ${settingsChanged ? `añade los hooks → ${command} y ${guardCommand}` : 'ya tiene los hooks'}`);
   console.log(`CLAUDE.md: ${claudeChanged ? 'añade o actualiza la sección "Router de agentes (Jev)"' : 'sin cambios'}`);
   console.log(`repos.json: ${reposMissing ? `se crea con ${repos}` : 'ya existe'}`);
   console.log(`subagentes: ${agents.map((a) => `${a.name} (${a.action})`).join(', ') || 'ninguno'}`);
@@ -134,4 +148,4 @@ if (require.main === module) {
   try { main(process.argv.includes('--apply')); }
   catch (e) { console.error(`Error: ${e.message}`); process.exit(1); }
 }
-module.exports = { addHook, withSection, SECTION, main, planAgents, planSkills };
+module.exports = { addHook, addGuard, withSection, SECTION, main, planAgents, planSkills };

@@ -4,7 +4,9 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const readline = require('readline');
 const log = require('./log');
+const quota = require('./quota');
 
 const fam = (a) => String(a).split('-')[0];
 const QUOTA = { claude: 'claude', codex: 'codex', agy: 'google' };
@@ -62,6 +64,13 @@ function summarize(rows, sinceIso) {
     skipped: count(rs.filter((r) => r.skip), (r) => r.skip),
     decisions: count(cls, (r) => `${r.agent}/${r.why}`),
     recommended: rec.length,
+    guard: {
+      delegated: rs.filter((r) => r.event === 'delegated').length,
+      blocked: rs.filter((r) => r.event === 'blocked').length,
+      wouldBlock: rs.filter((r) => r.event === 'would-block').length,
+      endedPending: rs.filter((r) => r.event === 'ended-pending').length,
+      released: count(rs.filter((r) => r.event === 'released'), (r) => r.why),
+    },
     followed,
     ignored,
     followRate: pct(followed, rec.length),
@@ -83,25 +92,36 @@ function parseSince(arg, now = Date.now()) {
 // Work tokens (new input + cache writes + output; cache reads excluded) per model family, split
 // between the main session and subagents. Reads only counts and model ids, never message text.
 const FAMILIES = ['opus', 'sonnet', 'haiku'];
-function tokensByModel(lines, since) {
+function keepUsage(byMessage, line, since) {
+  let d;
+  try { d = JSON.parse(line); } catch { return; }
+  const m = d?.message;
+  if (d?.type !== 'assistant' || typeof m?.model !== 'string' || !m.usage || !(d.timestamp >= since)) return;
+  const fam = FAMILIES.find((f) => m.model.includes(f));
+  if (!fam) return;
+  const u = m.usage;
+  const n = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.output_tokens || 0);
+  byMessage.set(m.id ?? `row-${byMessage.size}`, { fam, n, where: d.isSidechain ? 'sub' : 'main' });
+}
+
+function totals(byMessage) {
   const out = {};
-  for (const l of lines) {
-    let d;
-    try { d = JSON.parse(l); } catch { continue; }
-    const m = d?.message;
-    if (d?.type !== 'assistant' || typeof m?.model !== 'string' || !m.usage || !(d.timestamp >= since)) continue;
-    const fam = FAMILIES.find((f) => m.model.includes(f));
-    if (!fam) continue;
-    const u = m.usage;
-    const n = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.output_tokens || 0);
+  for (const { fam, n, where } of byMessage.values()) {
     out[fam] ??= { main: 0, sub: 0 };
-    out[fam][d.isSidechain ? 'sub' : 'main'] += n;
+    out[fam][where] += n;
   }
   return out;
 }
 
-function readTokens(since, dir = path.join(os.homedir(), '.claude', 'projects')) {
-  const total = {};
+function tokensByModel(lines, since) {
+  const byMessage = new Map();
+  for (const l of lines) keepUsage(byMessage, l, since);
+  return totals(byMessage);
+}
+
+// The same message is written once per content block, and a resumed session copies its history into a
+// new file: counting rows counts most tokens twice. Keep one row per message id, across every file.
+async function readTokens(since, dir = path.join(os.homedir(), '.claude', 'projects')) {
   const cut = Date.parse(since);
   // <project>/<session>.jsonl and <project>/<session>/subagents/<agent>.jsonl
   const files = [];
@@ -116,17 +136,17 @@ function readTokens(since, dir = path.join(os.homedir(), '.claude', 'projects'))
       }
     }
   } catch { /* no transcripts */ }
+  const byMessage = new Map();
   for (const file of files) {
     try {
       if (fs.statSync(file).mtimeMs < cut) continue;
-      for (const [fam, v] of Object.entries(tokensByModel(fs.readFileSync(file, 'utf8').split('\n'), since))) {
-        total[fam] ??= { main: 0, sub: 0 };
-        total[fam].main += v.main;
-        total[fam].sub += v.sub;
+      // Streamed: a transcript can pass the 512 MB a single string can hold.
+      for await (const line of readline.createInterface({ input: fs.createReadStream(file), crlfDelay: Infinity })) {
+        if (line.includes('"usage"') && line.length < 4e6) keepUsage(byMessage, line, since);
       }
     } catch { /* unreadable transcript */ }
   }
-  return total;
+  return totals(byMessage);
 }
 
 function printTokens(t) {
@@ -155,8 +175,16 @@ function print(s) {
   console.log(`  por repo:               ${kv(s.delegations.byRepo)}`);
   console.log(`  motivos de fallo:       ${kv(s.delegations.failReasons)}`);
   console.log(`minutos por cuota:        Codex Pro ${m(q.codex)} · Google AI Pro ${m(q.google)}`);
-  console.log(`recomendaciones delegar:  ${s.recommended} (el % de seguidas no es fiable: worktrees y delegaciones pedidas a mano no se emparejan)`);
+  console.log(`recomendaciones delegar:  ${s.recommended}`);
+  const g = s.guard;
+  console.log(`guard:                    delegó ${g.delegated} · bloqueado ${g.blocked} · lo habría bloqueado ${g.wouldBlock} · acabó sin delegar ${g.endedPending} · liberado ${kv(g.released) || 0}`);
   console.log(`latencia media del hook:  ${s.avgMs} ms`);
+}
+
+function printQuota(snap = quota.snapshot()) {
+  if (!snap) return console.log('cuota real:               sin lectura todavía (node quota.js)');
+  const show = (name, g) => { const left = quota.leftNow(g); return left === null ? `${name} ?` : `${name} ${Math.round(left * 100)} %`; };
+  console.log(`cuota real (queda):       ${show('Codex', snap.codex)} · ${show('Gemini', snap.gemini)} · ${show('Claude/GPT en Antigravity', snap.claudeGpt)}`);
 }
 
 if (require.main === module) {
@@ -167,6 +195,7 @@ if (require.main === module) {
     rows = fs.readFileSync(log.FILE, 'utf8').split('\n').flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
   } catch { /* no log yet */ }
   print(summarize(rows, since));
-  printTokens(readTokens(since));
+  printQuota();
+  readTokens(since).then(printTokens);
 }
 module.exports = { summarize, parseSince, tokensByModel, readTokens };

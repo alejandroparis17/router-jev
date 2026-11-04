@@ -20,6 +20,7 @@ async function setup({ status = 200, answers = ANSWERS, allow = true } = {}) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'router-home-'));
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'router-repo-'));
   fs.writeFileSync(path.join(home, 'repos.json'), JSON.stringify({ repos: [allow ? path.dirname(repo) : '/nowhere'] }));
+  fs.writeFileSync(path.join(home, 'quota.json'), JSON.stringify({ at: Date.now() })); // fresh and empty: no refresh, no reading
   const preload = path.join(home, 'fetch.cjs');
   const callsFile = path.join(home, 'calls.jsonl');
   // Stub only the external HTTP boundary; the child still runs the real classifier and hook.
@@ -161,7 +162,7 @@ test('a task kept in the session recommends nothing to ignore', async (t) => {
   assert.equal(ignored(s).length, 0);
 });
 
-test('out of quota: codex-astra falls back to claude-opus, an expired mark is ignored, a claude agent is never replaced', async (t) => {
+test('out of quota: codex-astra falls back to agy-opus, then claude-opus; an expired mark is ignored, a claude agent is never replaced', async (t) => {
   const mark = (home, o) => fs.writeFileSync(path.join(home, 'unavailable.json'), JSON.stringify(o));
   const future = new Date(Date.now() + 3600e3).toISOString();
   const past = new Date(Date.now() - 3600e3).toISOString();
@@ -169,9 +170,9 @@ test('out of quota: codex-astra falls back to claude-opus, an expired mark is ig
   const a = await setup(); t.after(a.close);
   mark(a.home, { codex: future });
   const ra = await a.run({ prompt: MESSAGE, cwd: a.repo });
-  assert.match(ra.out, /^\[router\] → claude-opus · implementar · peso 4 · tipo 0\.90\n$/);
+  assert.match(ra.out, /^\[router\] → agy-opus · implementar · peso 4 · tipo 0\.90\n$/);
   const e = a.entries().at(-1);
-  assert.deepEqual([e.agent, e.reviewer, e.fallbackFrom], ['claude-opus', null, 'codex-astra']);
+  assert.deepEqual([e.agent, e.reviewer, e.fallbackFrom], ['agy-opus', null, 'codex-astra']);
 
   const b = await setup(); t.after(b.close);
   mark(b.home, { codex: past });
@@ -204,7 +205,7 @@ test('the fallback keeps the self-contained brief flag and names no skills or ne
   const s = await setup({ answers: { ...ANSWERS, depends: { type: 'noul', noul: 0.9 } } }); t.after(s.close);
   fs.writeFileSync(path.join(s.home, 'unavailable.json'), JSON.stringify({ codex: new Date(Date.now() + 3600e3).toISOString() }));
   const { out } = await s.run({ prompt: MESSAGE, cwd: s.repo });
-  assert.match(out, /→ claude-opus/);
+  assert.match(out, /→ agy-opus/);
   assert.doesNotMatch(out, /skills:|sube a:/);
   assert.match(out, /encargo autocontenido/);
 });
@@ -274,21 +275,10 @@ test('Opus delegates light implementation to Haiku; other session models keep ro
   }
 });
 
-test('only Opus conversation session decisions get the Sonnet nudge; exceptions are not tiered', async (t) => {
-  for (const [options, why, nudge] of [
-    [{ tipo: 'pregunta' }, 'simple', true], [{ tipo: 'none' }, 'none', true],
-    [{ prob: 0.4 }, 'unsure', true], [{ risk: 0.9, decidir: 0.9 }, 'risk', false],
-    [{ tipo: 'plan', peso: 4, decidir: 0.9 }, 'think-only', true],
-  ]) {
-    for (const model of ['claude-opus-5-5', 'claude-sonnet-5-5']) {
-      const s = await setup({ answers: judgments(options) }); t.after(s.close);
-      const { out } = await s.run({ prompt: MESSAGE, cwd: s.repo, transcript_path: transcript(s, model) });
-      assert.equal(s.entries().at(-1).why, why);
-      assert.equal(out.includes('sesión en opus: /model sonnet'), model.includes('opus') && nudge);
-      assert.doesNotMatch(out, /claude-haiku/);
-      assert.doesNotMatch(JSON.stringify(s.entries()), /sesión en opus|\/model sonnet/);
-    }
-  }
+test('the router never asks the person to switch model by hand', async (t) => {
+  const s = await setup({ answers: judgments({ tipo: 'pregunta' }) }); t.after(s.close);
+  const { out } = await s.run({ prompt: MESSAGE, cwd: s.repo, transcript_path: transcript(s, 'claude-opus-5-5') });
+  assert.doesNotMatch(out, /\/model/);
 });
 
 test('malformed, missing, non-string and huge transcripts keep normal routing and exit zero', async (t) => {
@@ -314,20 +304,20 @@ test('thinking line names both phases, keeps usual bits and logs only judgments'
   assert.equal(s.entries().at(-1).thinkFallbackFrom, undefined);
 });
 
-test('think-only line has no implementation and unavailable codex falls back to Opus for thinking', async (t) => {
+test('think-only line has no implementation and unavailable codex falls back to agy-opus for thinking', async (t) => {
   for (const tipo of ['plan', 'implementar']) {
     for (const markedDown of [false, true]) {
       const s = await setup({ answers: judgments({ tipo, peso: 4, decidir: 0.9 }) }); t.after(s.close);
       fs.writeFileSync(path.join(s.home, 'unavailable.json'), JSON.stringify({ codex: new Date(Date.now() + (markedDown ? 3600e3 : -3600e3)).toISOString() }));
       const { out } = await s.run({ prompt: MESSAGE, cwd: s.repo });
-      assert.match(out, new RegExp(`^\\[router\\] → decidir: ${markedDown ? 'claude-opus' : 'codex-astra'} · `));
+      assert.match(out, new RegExp(`^\\[router\\] → decidir: ${markedDown ? 'agy-opus' : 'codex-astra'} · `));
       if (tipo === 'plan') {
         assert.match(out, /solo pensar \(plan\).*skills: brainstorming, writing-plans/);
         assert.doesNotMatch(out, /implementar:|revisa:|sube a:/);
-      } else assert.match(out, new RegExp(`implementar: ${markedDown ? 'claude-sonnet' : 'codex-reserve'}`));
+      } else assert.match(out, new RegExp(`implementar: ${markedDown ? 'agy-flash' : 'codex-reserve'}`));
       const e = s.entries().at(-1);
       assert.equal(e.thinkFallbackFrom, markedDown ? 'codex-astra' : undefined);
-      assert.equal(e.think, markedDown ? 'claude-opus' : 'codex-astra');
+      assert.equal(e.think, markedDown ? 'agy-opus' : 'codex-astra');
       assert.equal(e.fallbackFrom, markedDown && tipo !== 'plan' ? 'codex-reserve' : undefined);
     }
   }
@@ -381,14 +371,48 @@ test('Opus tiers bug and revision peso 2 to Haiku; risk stays in session; light 
   assert.match(out, /^\[router\] → /);
 });
 
-test('with codex out of quota, the astra rung falls back to claude-opus and the reserve rung to claude-sonnet', async (t) => {
+test('out of Codex the tier is kept on Antigravity; out of both it is kept on Claude', async (t) => {
   const mark = (home, o) => fs.writeFileSync(path.join(home, 'unavailable.json'), JSON.stringify(o));
   const future = new Date(Date.now() + 3600e3).toISOString();
-  const heavy = await setup(); t.after(heavy.close);
-  mark(heavy.home, { codex: future });
-  assert.match((await heavy.run({ prompt: MESSAGE, cwd: heavy.repo })).out, /^\[router\] → claude-opus/);
-  assert.equal(heavy.entries().at(-1).fallbackFrom, 'codex-astra');
-  const light = await setup({ answers: { ...ANSWERS, weight: { type: 'score', score: 1.2, confidence: 0.9 } } }); t.after(light.close);
-  mark(light.home, { codex: future });
-  assert.match((await light.run({ prompt: MESSAGE, cwd: light.repo })).out, /^\[router\] → claude-sonnet/);
+  const light = { answers: { ...ANSWERS, weight: { type: 'score', score: 1.2, confidence: 0.9 } } };
+  for (const [opts, marks, want] of [[{}, { codex: future }, 'agy-opus'], [light, { codex: future }, 'agy-flash'], [{}, { codex: future, agy: future }, 'claude-opus'], [light, { codex: future, agy: future }, 'claude-sonnet']]) {
+    const s = await setup(opts); t.after(s.close);
+    mark(s.home, marks);
+    assert.match((await s.run({ prompt: MESSAGE, cwd: s.repo })).out, new RegExp(`^\\[router\\] → ${want}`));
+  }
+});
+
+test('a real reading of the plan beats the mark, per model group', async (t) => {
+  const quota = (home, o) => fs.writeFileSync(path.join(home, 'quota.json'), JSON.stringify({ at: Date.now(), ...o }));
+  const reset = new Date(Date.now() + 3600e3).toISOString();
+  const s = await setup(); t.after(s.close);
+  fs.writeFileSync(path.join(s.home, 'unavailable.json'), JSON.stringify({ codex: reset }));
+  quota(s.home, { codex: { windows: [{ left: 0.5, reset }] } });
+  assert.match((await s.run({ prompt: MESSAGE, cwd: s.repo })).out, /→ codex-astra/);
+  const g = await setup(); t.after(g.close);
+  quota(g.home, { codex: { windows: [{ left: 0, reset }] }, claudeGpt: { windows: [{ left: 0, reset }] }, gemini: { windows: [{ left: 0.9, reset }] } });
+  assert.match((await g.run({ prompt: MESSAGE, cwd: g.repo })).out, /→ claude-opus/);
+});
+
+test('a finished background task is not a prompt: no classification, no line, pending untouched', async (t) => {
+  const s = await setup(); t.after(s.close);
+  const { setPending, getPending } = require('../guard');
+  setPending('sid', ['claude-haiku'], s.home);
+  const { out } = await s.run({ prompt: '<task-notification>\n<task-id>x</task-id> done with a long enough body to classify', cwd: s.repo, session_id: 'sid' });
+  assert.equal(out, '');
+  assert.deepEqual(getPending('sid', s.home), ['claude-haiku']);
+});
+
+test('the decision becomes the pending queue; short keeps it, anything else replaces it', async (t) => {
+  const { getPending, setPending } = require('../guard');
+  const s = await setup(); t.after(s.close);
+  await s.run({ prompt: MESSAGE, cwd: s.repo, session_id: 'sid' });
+  assert.deepEqual(getPending('sid', s.home), ['codex-astra']);
+  await s.run({ prompt: 'dale', cwd: s.repo, session_id: 'sid' });
+  assert.deepEqual(getPending('sid', s.home), ['codex-astra']);
+  await s.run({ prompt: 'hazlo tú', cwd: s.repo, session_id: 'sid' });
+  assert.deepEqual(getPending('sid', s.home), []);
+  const two = await setup({ answers: judgments({ tipo: 'implementar', peso: 4, decidir: 0.9 }) }); t.after(two.close);
+  await two.run({ prompt: MESSAGE, cwd: two.repo, session_id: 'sid' });
+  assert.deepEqual(getPending('sid', two.home), ['codex-astra', 'codex-reserve']);
 });

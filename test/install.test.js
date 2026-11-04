@@ -154,8 +154,19 @@ test('the CLAUDE.md section is a short pointer: follow by default, load router-j
 test('the router-jev skill carries the full procedure', () => {
   assert.match(SKILL, /^---\nname: router-jev\ndescription: Use when /);
   for (const text of ['router-ligero', 'router-pensador', 'dispatch.js', 'decidir:', 'Paso 1', 'Paso 2', 'SOLO una conclusión escrita',
-    'literal', 'solo pensar', 'encargo autocontenido', 'revisa:', 'sube a:', 'sesión en opus: /model sonnet',
+    'literal', 'solo pensar', 'encargo autocontenido', 'revisa:', 'sube a:', 'ESCALATE:', '--release', '--think',
     'unavailable: true', 'model: opus', '--record', 'Lo decidido en la conversación', 'Criterio de hecho', 'hazlo tú', 'report.js']) {
     assert.ok(SKILL.includes(text), text);
   }
+});
+
+test('the guard is added to tool calls and turn ends, once, next to what is already there', () => {
+  const { addGuard } = require('../install');
+  const c = 'node /h/.claude/router/guard.js';
+  const before = { hooks: { Stop: [{ hooks: [{ type: 'command', command: 'other' }] }] } };
+  const after = addGuard(before, c);
+  assert.equal(after.hooks.Stop.length, 2);
+  assert.equal(after.hooks.PreToolUse[0].matcher, 'Edit|Write|NotebookEdit|Bash|Agent|Task');
+  assert.equal(addGuard(after, c), after);
+  assert.throws(() => addGuard({ hooks: { Stop: 'x' } }, c), /no es una lista/);
 });

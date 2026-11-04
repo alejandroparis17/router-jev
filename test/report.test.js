@@ -100,20 +100,20 @@ test('tokensByModel counts new input + cache writes + output per family, split m
   assert.equal(JSON.stringify(t).includes('SECRET'), false);
 });
 
-test('readTokens reads every project transcript newer than since and tolerates a missing dir', () => {
+test('readTokens reads every project transcript newer than since and tolerates a missing dir', async () => {
   const dir = fs2.mkdtempSync(path2.join(os2.tmpdir(), 'router-tok-'));
   fs2.mkdirSync(path2.join(dir, 'p1'));
   fs2.writeFileSync(path2.join(dir, 'p1', 'a.jsonl'), tline('claude-opus-5-5', false, '2026-10-10T01:00:00Z', [1, 1, 1]) + '\n');
-  assert.equal(readTokens('2026-10-08', dir).opus.main, 3);
-  assert.deepEqual(readTokens('2026-10-08', path2.join(dir, 'nope')), {});
+  assert.equal((await readTokens('2026-10-08', dir)).opus.main, 3);
+  assert.deepEqual(await readTokens('2026-10-08', path2.join(dir, 'nope')), {});
 });
 
-test('readTokens also reads subagent transcripts under <session>/subagents and counts them as subagents', () => {
+test('readTokens also reads subagent transcripts under <session>/subagents and counts them as subagents', async () => {
   const dir = fs2.mkdtempSync(path2.join(os2.tmpdir(), 'router-tok-'));
   fs2.mkdirSync(path2.join(dir, 'p1', 'sess1', 'subagents'), { recursive: true });
   fs2.writeFileSync(path2.join(dir, 'p1', 'sess1.jsonl'), tline('claude-sonnet-5-5', false, '2026-10-10T01:00:00Z', [1, 1, 1]) + '\n');
   fs2.writeFileSync(path2.join(dir, 'p1', 'sess1', 'subagents', 'agent-a.jsonl'), tline('claude-haiku-4-5-20251001', true, '2026-10-10T01:01:00Z', [2, 2, 2]) + '\n');
-  const t = readTokens('2026-10-08', dir);
+  const t = await readTokens('2026-10-08', dir);
   assert.deepEqual(t.haiku, { main: 0, sub: 6 });
   assert.deepEqual(t.sonnet, { main: 3, sub: 0 });
 });
@@ -132,4 +132,14 @@ test('the report counts real delegations by agent, repo and failure reason', () 
   assert.deepEqual(s.delegations.byRepo, { NORTH: 3, arnes: 1 });
   assert.deepEqual(s.delegations.failReasons, { 'agent-error': 1, 'sin registrar': 1 });
   assert.equal(s.delegations.total, 4);
+});
+
+test('one message written several times counts once, even across a resumed session file', async () => {
+  const fs2 = require('fs'), os2 = require('os'), path3 = require('path');
+  const dir = fs2.mkdtempSync(path3.join(os2.tmpdir(), 'tok-'));
+  fs2.mkdirSync(path3.join(dir, 'p'));
+  const row = JSON.stringify({ type: 'assistant', timestamp: '2026-11-01T00:00:00Z', message: { id: 'm1', model: 'claude-opus-5-5', usage: { input_tokens: 10, output_tokens: 5 } } });
+  fs2.writeFileSync(path3.join(dir, 'p', 'a.jsonl'), `${row}\n${row}\n`);
+  fs2.writeFileSync(path3.join(dir, 'p', 'b.jsonl'), `${row}\n`);
+  assert.equal((await readTokens('2026-10-08', dir)).opus.main, 15);
 });
