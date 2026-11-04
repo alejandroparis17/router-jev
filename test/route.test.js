@@ -183,11 +183,11 @@ test('out of quota: codex-astra falls back to agy-opus, then claude-opus; an exp
   mark(c.home, { codex: future, agy: future });
   assert.match((await c.run({ prompt: MESSAGE, cwd: c.repo })).out, /→ claude-opus/);
 
-  // a claude-* decision (a heavy question goes to claude-sonnet) is left alone even with everything marked
+  // a claude-* decision (a heavy question goes to claude-opus) is left alone even with everything marked
   const u = await setup({ answers: { ...ANSWERS, kind: { type: 'choice', choice: 'pregunta', probabilities: { pregunta: 0.9 }, confidence: 0.8 } } }); t.after(u.close);
   mark(u.home, { codex: future, agy: future });
   assert.equal(u.entries().at(-1)?.fallbackFrom, undefined);
-  assert.match((await u.run({ prompt: MESSAGE, cwd: u.repo })).out, /→ claude-sonnet/);
+  assert.match((await u.run({ prompt: MESSAGE, cwd: u.repo })).out, /→ claude-opus · pregunta/);
   assert.equal(u.entries().at(-1).fallbackFrom, undefined);
 });
 

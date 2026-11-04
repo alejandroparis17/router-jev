@@ -26,7 +26,7 @@ test('each ladder picks the first rung that reaches the weight', () => {
     ['ui', 2, 'codex-reserve'], ['ui', 5, 'codex-astra'],
     ['plan', 4, 'codex-astra'], ['plan', 5, 'claude-opus'],
     ['escribir', 2, 'agy-flash'], ['escribir', 4, 'agy-opus'],
-    ['pregunta', 1, 'session'], ['pregunta', 3, 'session'], ['pregunta', 4, 'claude-sonnet'],
+    ['pregunta', 1, 'session'], ['pregunta', 3, 'session'], ['pregunta', 4, 'claude-opus'],
     ['datos', 3, 'codex-reserve'], ['datos', 4, 'codex-astra'],
     ['revision', 3, 'session'], ['revision', 4, 'codex-astra'], ['qa', 4, 'codex-astra'],
   ];

@@ -10,8 +10,9 @@ const MAX_DEPENDS = 0.4;
 // agy's first rung is 'escribir'; it also takes over building when Codex runs out (see route.js).
 // Ordered cheapest to most capable: [agent, heaviest weight it takes].
 const LADDERS = {
-  // a small question is answered in the session: a subagent costs more than the answer
-  pregunta: [['session', 3], ['claude-sonnet', 5]],
+  // a small question is answered in the session (Sonnet): a subagent costs more than the answer.
+  // A heavy one goes to Opus: a Sonnet subagent would be the same model as the session.
+  pregunta: [['session', 3], ['claude-opus', 5]],
   implementar: [['codex-reserve', 3], ['codex-astra', 5]],
   bug: [['codex-reserve', 2], ['codex-astra', 5]],
   // a small review is a chat answer the session already has the context for: 7 of 8 ignored

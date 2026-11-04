@@ -16,7 +16,7 @@ La línea `[router] →` dice qué modelo debe hacer el trabajo según su peso. 
 |---|---|
 | `sesión actual (…)` | Sigues tú. No delegues. |
 | `claude-haiku` | Agent con `subagent_type: router-ligero` y un encargo completo. |
-| `claude-opus` | Para decidir: `router-pensador`. Para implementar (motivo `no-quota`): subagente general con `model: opus`. |
+| `claude-opus` | Para decidir o responder una pregunta pesada: `router-pensador`. Para implementar (motivo `no-quota`): subagente general con `model: opus`. |
 | `claude-sonnet` | Subagente general con `model: sonnet`. |
 | `codex-reserve` · `codex-astra` · `agy-flash` · `agy-opus` | `node ~/.claude/router/dispatch.js <agente> --cwd <repo>` con el encargo por stdin. Editan dentro del repo; `agy` no puede ejecutar comandos, así que las comprobaciones las ejecutas tú. |
 | `decidir: X · implementar: Y` | Paso 1: X entrega SOLO una conclusión escrita (añade `--think` si X va por `dispatch.js`: sin permiso de escritura). Paso 2: esa conclusión, literal, dentro del encargo para Y. `implementar: session` = la aplicas tú. |
