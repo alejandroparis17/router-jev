@@ -48,9 +48,9 @@ function delegatesTo(agent, tool, input = {}) {
   if (tool === 'Agent' || tool === 'Task') {
     const { subagent_type: type, model } = input;
     if (READ_ONLY_AGENTS.has(type)) return false; // preparing the brief, not handing over the work
-    if (agent === 'claude-haiku') return type === 'router-ligero' || model === 'haiku';
+    if (agent === 'claude-haiku') return type === 'router-light' || model === 'haiku';
     if (agent === 'claude-sonnet') return model === 'sonnet';
-    if (agent === 'claude-opus') return type === 'router-pensador' || model === 'opus';
+    if (agent === 'claude-opus') return type === 'router-thinker' || model === 'opus';
     return false;
   }
   if (tool !== 'Bash') return false;
@@ -73,9 +73,9 @@ function insideWork(filePath, cwd) {
   return !outside.some((d) => p.startsWith(d)) && p.startsWith(path.resolve(cwd || '.') + path.sep);
 }
 
-const reasonFor = (agent) => `[router] Este trabajo es de ${agent}, no de la sesión. Delégalo ahora siguiendo la skill router-jev, con el encargo completo. ` +
-  `Si de verdad no procede, ejecuta \`node ~/.claude/router/dispatch.js --release <${RELEASES.join('|')}>\` y dilo en una línea: ` +
-  'person = la persona pidió que lo hagas tú; in-progress = ya estaba a medias en esta sesión; no-brief = no se puede escribir el encargo; question = necesitas preguntarle algo antes.';
+const reasonFor = (agent) => `[router] This work belongs to ${agent}, not to the session. Delegate it now following the router-jev skill, with a complete brief. ` +
+  `If it really should not be delegated, run \`node ~/.claude/router/dispatch.js --release <${RELEASES.join('|')}>\` and say why in one line: ` +
+  'person = the person asked you to do it yourself; in-progress = it was already half done in this session; no-brief = a brief cannot be written; question = you need to ask something first.';
 
 // One tool call against the queue: pure, so every case is a test.
 function verdict(queue, { tool_name: tool, tool_input: input = {}, cwd, agent_id: sub }) {

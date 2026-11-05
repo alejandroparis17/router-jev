@@ -5,6 +5,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { getKey } = require('./jev');
+const config = require('./config');
 const log = require('./log');
 
 function atLeast(v, min) {
@@ -25,14 +26,22 @@ const hookInstalled = (settings, command) =>
 
 const out = (cmd, args) => execFileSync(cmd, args, { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] });
 
+const off = config.load().disable;
+const keyFileUnsafe = () => {
+  try { return (fs.statSync(path.join(log.HOME, 'jev.key')).mode & 0o077) !== 0; } catch { return false; }
+};
+const settings = () => JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', 'settings.json'), 'utf8'));
+const hookCommand = (file) => `node ${path.join(os.homedir(), '.claude', 'router', file)}`;
+
 const checks = [
   ['node >= 20', () => atLeast(process.versions.node, '20.0.0')],
-  ['codex >= 0.160 (gpt-6-astra needs it)', () => atLeast(out('codex', ['--version']).match(/\d+\.\d+\.\d+/)[0], '0.160.0')],
-  ['agy installed', () => /\d+\.\d+/.test(out('agy', ['--version']))],
-  ['Jev key in the Keychain', () => Boolean(getKey())],
+  ...(off.includes('codex') ? [] : [['codex >= 0.160 (gpt-6-astra needs it; with another model any recent codex will do)', () => atLeast(out('codex', ['--version']).match(/\d+\.\d+\.\d+/)[0], '0.160.0')]]),
+  ...(off.includes('agy') ? [] : [['agy installed', () => /\d+\.\d+/.test(out('agy', ['--version']))]]),
+  ['Jev key found (ROUTER_JEV_KEY, macOS Keychain, or a private jev.key file)', () => Boolean(getKey())],
+  ['jev.key, if present, is readable only by you (chmod 600)', () => !keyFileUnsafe()],
   ['repos.json lists at least one path', () => JSON.parse(fs.readFileSync(path.join(log.HOME, 'repos.json'), 'utf8')).repos.length > 0],
-  ['hook installed in settings.json', () => hookInstalled(JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', 'settings.json'), 'utf8')), `node ${path.join(os.homedir(), '.claude', 'router', 'route.js')}`)],
-  ['guard installed in settings.json', () => guardInstalled(JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', 'settings.json'), 'utf8')), `node ${path.join(os.homedir(), '.claude', 'router', 'guard.js')}`)],
+  ['hook installed in settings.json', () => hookInstalled(settings(), hookCommand('route.js'))],
+  ['guard installed in settings.json', () => guardInstalled(settings(), hookCommand('guard.js'))],
 ];
 
 if (require.main === module) {

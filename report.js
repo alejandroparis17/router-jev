@@ -12,10 +12,18 @@ const fam = (a) => String(a).split('-')[0];
 const QUOTA = { claude: 'claude', codex: 'codex', agy: 'google' };
 const pct = (n, d) => (d ? Math.round((100 * n) / d) : 0);
 
+// Rows written before the fields were renamed from Spanish keep working.
+const OLD_KIND = { pregunta: 'question', implementar: 'implement', revision: 'review', escribir: 'write', datos: 'data' };
+function upgrade(r) {
+  if (r.tipo === undefined) return r;
+  const { tipo, peso, tipoProb, depende, sensible, decidir, ...rest } = r;
+  return { ...rest, kind: OLD_KIND[tipo] ?? tipo, weight: peso, kindProb: tipoProb, depends: depende, sensitive: sensible, decide: decidir };
+}
+
 function summarize(rows, sinceIso) {
   const since = Date.parse(sinceIso);
   const rs = rows.filter((r) => Date.parse(r.ts) >= since);
-  const cls = rs.filter((r) => r.tipo && !r.event);
+  const cls = rs.filter((r) => r.kind && !r.event);
   const ev = (e) => rs.filter((r) => r.event === e);
   const rec = cls.filter((r) => r.agent !== 'session');
   const ignoredIds = new Set(ev('ignored').map((r) => r.of));
@@ -45,7 +53,7 @@ function summarize(rows, sinceIso) {
     q.count++;
     q.minutes += (r.ms || 0) / 60000;
   }
-  // Real delegations, the reliable number: a worktree (NORTH-react-m1) counts under its repo (NORTH).
+  // Real delegations, the reliable number: a worktree (app-feature-m1) counts under its repo (app).
   const disp = ev('dispatch');
   const names = [...new Set(disp.map((r) => r.repo).filter(Boolean))];
   const repoOf = (n) => (n ? names.filter((x) => x !== n && n.startsWith(x + '-')).sort((a, b) => a.length - b.length)[0] || n : 'sin repo');
@@ -75,7 +83,7 @@ function summarize(rows, sinceIso) {
     ignored,
     followRate: pct(followed, rec.length),
     byFamily: rate((r) => fam(r.agent)),
-    byWeight: rate((r) => r.peso),
+    byWeight: rate((r) => r.weight),
     byQuota,
     failed: ev('dispatch').filter((r) => r.ok === false).length,
     delegations,
@@ -152,10 +160,10 @@ async function readTokens(since, dir = path.join(os.homedir(), '.claude', 'proje
 function printTokens(t) {
   const all = Object.values(t).reduce((a, v) => a + v.main + v.sub, 0) || 1;
   const M = (n) => `${(n / 1e6).toFixed(1)} M`;
-  console.log('tokens por modelo (sesión / subagentes):');
+  console.log('tokens by model (session / subagents):');
   for (const fam of FAMILIES) {
     const v = t[fam] || { main: 0, sub: 0 };
-    console.log(`  ${fam.padEnd(7)} ${M(v.main + v.sub).padStart(8)} · ${Math.round((100 * (v.main + v.sub)) / all)}%  (sesión ${M(v.main)}, subagentes ${M(v.sub)})`);
+    console.log(`  ${fam.padEnd(7)} ${M(v.main + v.sub).padStart(8)} · ${Math.round((100 * (v.main + v.sub)) / all)}%  (session ${M(v.main)}, subagents ${M(v.sub)})`);
   }
 }
 
@@ -164,27 +172,27 @@ function print(s) {
   const rt = (v) => `${v.followed}/${v.recommended} (${v.rate}%)`;
   const q = s.byQuota;
   const m = (x) => `${x.count} (${Math.round(x.minutes * 10) / 10} min)`;
-  console.log(`período:                  desde ${s.since}`);
-  console.log(`mensajes clasificados:    ${s.classified}`);
-  console.log(`fases decidir→implementar: ${s.thinking}`);
-  console.log(`sesión en opus: ${s.opusSessions} de ${s.classified} clasificados`);
-  console.log(`saltados:                 ${kv(s.skipped)}`);
-  console.log(`decisiones:               ${kv(s.decisions)}`);
-  console.log(`delegaciones reales:      ${s.delegations.total} · fallidas ${s.failed}`);
-  console.log(`  por agente:             ${kv(s.delegations.byAgent)}`);
-  console.log(`  por repo:               ${kv(s.delegations.byRepo)}`);
-  console.log(`  motivos de fallo:       ${kv(s.delegations.failReasons)}`);
-  console.log(`minutos por cuota:        Codex Pro ${m(q.codex)} · Google AI Pro ${m(q.google)}`);
-  console.log(`recomendaciones delegar:  ${s.recommended}`);
+  console.log(`period:                   since ${s.since}`);
+  console.log(`messages classified:      ${s.classified}`);
+  console.log(`decide→implement phases:  ${s.thinking}`);
+  console.log(`opus sessions:            ${s.opusSessions} of ${s.classified} classified`);
+  console.log(`skipped:                  ${kv(s.skipped)}`);
+  console.log(`decisions:                ${kv(s.decisions)}`);
+  console.log(`real delegations:         ${s.delegations.total} · failed ${s.failed}`);
+  console.log(`  by agent:               ${kv(s.delegations.byAgent)}`);
+  console.log(`  by repo:                ${kv(s.delegations.byRepo)}`);
+  console.log(`  failure reasons:        ${kv(s.delegations.failReasons)}`);
+  console.log(`minutes per plan:         Codex ${m(q.codex)} · Antigravity ${m(q.google)}`);
+  console.log(`delegation advised:       ${s.recommended}`);
   const g = s.guard;
-  console.log(`guard:                    delegó ${g.delegated} · bloqueado ${g.blocked} · lo habría bloqueado ${g.wouldBlock} · acabó sin delegar ${g.endedPending} · liberado ${kv(g.released) || 0}`);
-  console.log(`latencia media del hook:  ${s.avgMs} ms`);
+  console.log(`guard:                    delegated ${g.delegated} · blocked ${g.blocked} · would have blocked ${g.wouldBlock} · turn ended without delegating ${g.endedPending} · released ${kv(g.released)}`);
+  console.log(`mean hook latency:       ${s.avgMs} ms`);
 }
 
 function printQuota(snap = quota.snapshot()) {
-  if (!snap) return console.log('cuota real:               sin lectura todavía (node quota.js)');
+  if (!snap) return console.log('plan quota (real):        no reading yet (run node quota.js)');
   const show = (name, g) => { const left = quota.leftNow(g); return left === null ? `${name} ?` : `${name} ${Math.round(left * 100)} %`; };
-  console.log(`cuota real (queda):       ${show('Codex', snap.codex)} · ${show('Gemini', snap.gemini)} · ${show('Claude/GPT en Antigravity', snap.claudeGpt)}`);
+  console.log(`plan quota left (real):   ${show('Codex', snap.codex)} · ${show('Gemini', snap.gemini)} · ${show('Claude/GPT on Antigravity', snap.claudeGpt)}`);
 }
 
 if (require.main === module) {
@@ -194,8 +202,8 @@ if (require.main === module) {
   try {
     rows = fs.readFileSync(log.FILE, 'utf8').split('\n').flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
   } catch { /* no log yet */ }
-  print(summarize(rows, since));
+  print(summarize(rows.map(upgrade), since));
   printQuota();
   readTokens(since).then(printTokens);
 }
-module.exports = { summarize, parseSince, tokensByModel, readTokens };
+module.exports = { upgrade, summarize, parseSince, tokensByModel, readTokens };

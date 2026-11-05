@@ -1,1 +1,14 @@
-{ "name": "router", "private": true, "scripts": { "test": "node --test test/", "doctor": "node doctor.js", "eval": "node eval.js", "report": "node report.js" } }
+{
+  "name": "router-jev",
+  "version": "0.1.0",
+  "description": "Claude Code hook and skill that routes each task to the model best suited to its weight: Claude, Codex or Antigravity.",
+  "license": "MIT",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test test/",
+    "doctor": "node doctor.js",
+    "eval": "node eval.js",
+    "report": "node report.js"
+  }
+}

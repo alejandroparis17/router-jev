@@ -10,7 +10,7 @@ const log = require('../log');
 const lines = () => fs.readFileSync(log.FILE, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
 
 test('append writes an id and a timestamp, keeps mode 600, and stores what it is given', () => {
-  log.append({ repo: 'NORTH', agent: 'codex-astra', peso: 4 });
+  log.append({ repo: 'app', agent: 'codex-astra', weight: 4 });
   const [e] = lines();
   assert.match(e.id, /^[0-9a-f-]{36}$/);
   assert.ok(Date.parse(e.ts) > 0);

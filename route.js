@@ -11,6 +11,7 @@ const { decide, POLICY_VERSION } = require('./policy');
 const log = require('./log');
 const { setPending } = require('./guard');
 const quota = require('./quota');
+const config = require('./config');
 
 const DEADLINE_MS = 3000;
 
@@ -66,6 +67,7 @@ function switchedOff(repo) {
 
 // A fresh reading of the plan decides; without one, dispatch.js's mark in unavailable.json does.
 function down(agent, now = Date.now()) {
+  if (config.load().disable.includes(agent.split('-')[0])) return true; // this person has no such plan
   const known = quota.spent(agent, now);
   if (known !== null) return known;
   try {
@@ -88,15 +90,15 @@ function avoidDownAgent(d, now = Date.now()) {
 }
 
 function line(d, j) {
-  if (!d.think && d.agent === 'session') return `[router] → sesión actual (${d.why}) · ${j.tipo} · peso ${j.peso}`;
+  if (!d.think && d.agent === 'session') return `[router] → session (${d.why}) · ${j.kind} · weight ${j.weight}`;
   const target = d.think
-    ? `decidir: ${d.think} · ${d.why === 'think-only' ? `solo pensar (${j.tipo})` : `implementar: ${d.agent}`}`
+    ? `decide: ${d.think} · ${d.why === 'think-only' ? `think only (${j.kind})` : `implement: ${d.agent}`}`
     : d.agent;
-  const bits = [`[router] → ${target}`, j.tipo, `peso ${j.peso}`, `tipo ${j.tipoProb.toFixed(2)}`];
+  const bits = [`[router] → ${target}`, j.kind, `weight ${j.weight}`, `confidence ${j.kindProb.toFixed(2)}`];
   if (d.skills.length) bits.push(`skills: ${d.skills.join(', ')}`);
-  if (d.reviewer) bits.push(`revisa: ${d.reviewer}`);
-  if (d.up) bits.push(`sube a: ${d.up}`);
-  if (d.context) bits.push('encargo autocontenido');
+  if (d.reviewer) bits.push(`review: ${d.reviewer}`);
+  if (d.up) bits.push(`escalate to: ${d.up}`);
+  if (d.context) bits.push('self-contained brief');
   return bits.join(' · ');
 }
 
@@ -109,7 +111,7 @@ function settlePrevious(repo) {
       try { return [JSON.parse(l)]; } catch { return []; }
     });
     // Several sessions run at once in different repos: only this repo's last recommendation is settled.
-    const i = rows.map((r) => Boolean(r.tipo && !r.event && r.repo === repo)).lastIndexOf(true);
+    const i = rows.map((r) => Boolean((r.kind ?? r.tipo) && !r.event && r.repo === repo)).lastIndexOf(true);
     const prev = rows[i];
     if (!prev || prev.agent === 'session') return;
     const here = (r) => r.repo === undefined || r.repo === repo; // events logged before repo was recorded count anywhere
@@ -153,7 +155,7 @@ async function main() {
 
   let d = avoidDownAgent(decide(j));
   const model = sessionModel(transcript_path);
-  if (model === 'opus' && j.tipo !== 'pregunta' && j.peso <= 2 &&
+  if (model === 'opus' && j.kind !== 'question' && j.weight <= 2 &&
       ((d.agent === 'session' && d.why === 'simple') || (d.agent === 'codex-reserve' && d.why === 'ladder'))) {
     d = { ...d, agent: 'claude-haiku', why: 'tier', skills: [], reviewer: null, up: null };
   }

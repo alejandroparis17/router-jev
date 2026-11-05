@@ -27,10 +27,10 @@ test('notes and scratch files outside the repo pass: the brief must be writable'
 
 test('the right delegate consumes the head of the queue; the wrong one does not', () => {
   const agent = (i) => ({ tool_name: 'Agent', tool_input: i, cwd: '/repo' });
-  assert.equal(verdict(['claude-haiku'], agent({ subagent_type: 'router-ligero' })).action, 'consume');
+  assert.equal(verdict(['claude-haiku'], agent({ subagent_type: 'router-light' })).action, 'consume');
   assert.equal(verdict(['claude-haiku'], agent({ subagent_type: 'Explore' })).action, 'allow');
   assert.equal(verdict(['claude-haiku'], agent({ subagent_type: 'general-purpose' })).action, 'allow');
-  assert.equal(verdict(['claude-opus'], agent({ subagent_type: 'router-pensador' })).action, 'consume');
+  assert.equal(verdict(['claude-opus'], agent({ subagent_type: 'router-thinker' })).action, 'consume');
   assert.equal(verdict(['claude-opus'], agent({ subagent_type: 'general-purpose', model: 'opus' })).action, 'consume');
   assert.equal(verdict(['claude-sonnet'], agent({ model: 'sonnet' })).action, 'consume');
   for (const [q, model] of [['claude-haiku', 'haiku'], ['claude-sonnet', 'sonnet'], ['claude-opus', 'opus']]) assert.equal(verdict([q], agent({ subagent_type: 'Explore', model })).action, 'allow', q);
@@ -68,7 +68,7 @@ test('a two-phase decision needs both delegations, in order', () => {
   assert.match(handle({ ...edit, hook_event_name: 'PreToolUse' }, h), /"deny"/);
   assert.equal(handle({ session_id: 's', hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'node dispatch.js codex-astra --cwd .' }, cwd: '/repo' }, h), '');
   assert.match(handle({ ...edit, hook_event_name: 'PreToolUse' }, h), /claude-haiku/);
-  assert.equal(handle({ session_id: 's', hook_event_name: 'PreToolUse', tool_name: 'Agent', tool_input: { subagent_type: 'router-ligero' }, cwd: '/repo' }, h), '');
+  assert.equal(handle({ session_id: 's', hook_event_name: 'PreToolUse', tool_name: 'Agent', tool_input: { subagent_type: 'router-light' }, cwd: '/repo' }, h), '');
   assert.equal(handle({ ...edit, hook_event_name: 'PreToolUse' }, h), '');
 });
 

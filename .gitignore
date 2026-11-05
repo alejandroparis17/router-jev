@@ -1,7 +1,11 @@
 .superpowers/
-log.jsonl
 node_modules/
+log.jsonl
 unavailable.json
 quota.json
 pending/
 guard.json
+repos.json
+config.json
+jev.key
+*.bak-router*

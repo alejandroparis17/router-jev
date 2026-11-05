@@ -22,17 +22,17 @@ test('every type in the policy is offered to Jev, plus none', () => {
 });
 
 test('weight is the rounded score plus one; an unsure distribution takes the heavier', () => {
-  const peso = (score, confidence) => parse(answers({ weight: { type: 'score', score, confidence } })).peso;
-  assert.equal(peso(0, 0.9), 1);
-  assert.equal(peso(1.4, 0.9), 2);
-  assert.equal(peso(1.5, 0.9), 3);
-  assert.equal(peso(1.4, 0.3), 3);
-  assert.equal(peso(4, 0.3), 5);
+  const weight = (score, confidence) => parse(answers({ weight: { type: 'score', score, confidence } })).weight;
+  assert.equal(weight(0, 0.9), 1);
+  assert.equal(weight(1.4, 0.9), 2);
+  assert.equal(weight(1.5, 0.9), 3);
+  assert.equal(weight(1.4, 0.3), 3);
+  assert.equal(weight(4, 0.3), 5);
 });
 
 test('parse reads the type probability from probabilities, not confidence', () => {
   const j = parse(answers());
-  assert.deepEqual([j.tipo, j.tipoProb, j.depende, j.sensible, j.irreversible, j.decidir], ['bug', 0.9, 0.1, 0.2, 0.05, 0.7]);
+  assert.deepEqual([j.kind, j.kindProb, j.depends, j.sensitive, j.irreversible, j.decide], ['bug', 0.9, 0.1, 0.2, 0.05, 0.7]);
 });
 
 test('anything incomplete or out of range is null', () => {
@@ -45,7 +45,7 @@ test('anything incomplete or out of range is null', () => {
 
 test('classify returns judgments, and null without a key, on a bad status or on an error', async () => {
   const getKey = () => 'k';
-  assert.equal((await classify('x', { fetchImpl: ok({ answers: answers() }), getKey })).tipo, 'bug');
+  assert.equal((await classify('x', { fetchImpl: ok({ answers: answers() }), getKey })).kind, 'bug');
   assert.equal(await classify('x', { fetchImpl: ok({ answers: answers() }), getKey: () => null }), null);
   assert.equal(await classify('x', { fetchImpl: async () => ({ ok: false, status: 429 }), getKey }), null);
   assert.equal(await classify('x', { fetchImpl: async () => { throw new Error('down'); }, getKey }), null);
@@ -68,7 +68,7 @@ test('parse rejects Object.prototype keys in choice', () => {
 
 test('parse rejects unknown choice not in LADDERS or none', () => {
   assert.equal(parse(answers({ kind: { type: 'choice', choice: 'inventado', probabilities: { inventado: 0.9 } } })), null);
-  assert.equal(parse(answers({ kind: { type: 'choice', choice: 'none', probabilities: { none: 0.9 } } })).tipo, 'none');
+  assert.equal(parse(answers({ kind: { type: 'choice', choice: 'none', probabilities: { none: 0.9 } } })).kind, 'none');
 });
 
 test('parse rejects non-finite scores, missing confidence and out-of-range probabilities', () => {
@@ -90,5 +90,17 @@ test('decide is required, finite, typed noul and bounded inclusively', () => {
     ...[undefined, null, '0.5', NaN, Infinity, -Infinity, -0.1, 1.1].map(noul => ({ type: 'noul', noul }))]) {
     assert.equal(parse(answers({ decide: value })), null);
   }
-  for (const noul of [0, 0.5, 1]) assert.equal(parse(answers({ decide: { type: 'noul', noul } })).decidir, noul);
+  for (const noul of [0, 0.5, 1]) assert.equal(parse(answers({ decide: { type: 'noul', noul } })).decide, noul);
+});
+
+test('a key file is used only when nobody else can read it', () => {
+  const fs = require('fs'), os = require('os'), path = require('path'), { execFileSync } = require('child_process');
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'jevkey-'));
+  const file = path.join(d, 'jev.key');
+  const read = () => execFileSync(process.execPath, ['-e', "const k=require('./jev').keyFile();process.stdout.write(String(k))"], { cwd: path.join(__dirname, '..'), env: { ...process.env, ROUTER_HOME: d }, encoding: 'utf8' });
+  assert.equal(read(), 'null');
+  fs.writeFileSync(file, 'abc123\n', { mode: 0o600 });
+  assert.equal(read(), 'abc123');
+  fs.chmodSync(file, 0o644);
+  assert.equal(read(), 'null');
 });

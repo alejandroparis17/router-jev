@@ -1,9 +1,12 @@
 'use strict';
+const fs = require('fs');
 const os = require('os');
+const path = require('path');
 const { execFileSync } = require('child_process');
+const log = require('./log');
 
-// Jev, TypeSafe's System One model: typed judgments about a request. Same service NORTH uses,
-// with its own key (Keychain service "typesafe-jev"). ROUTER_JEV_URL and ROUTER_JEV_KEY exist for tests.
+// Jev, TypeSafe's System One model: typed judgments about a request. You need your own TypeSafe key.
+// ROUTER_JEV_URL and ROUTER_JEV_KEY exist for tests (the URL is honoured only when a key is set in the environment).
 const REAL_ENDPOINT = 'https://api.typesafe.ai/v1/systemone';
 const TIMEOUT_MS = 2200;
 
@@ -16,14 +19,14 @@ const WEIGHT = [
 ];
 
 const KINDS = {
-  pregunta: 'A question about code or a concept, or a search for information; nothing is changed',
-  implementar: 'Write or change code to add a feature or make a change',
+  question: 'A question about code or a concept, or a search for information; nothing is changed',
+  implement: 'Write or change code to add a feature or make a change',
   bug: 'Find and fix something that is broken, an error, or unexpected behaviour',
-  revision: 'Review code or a diff and report problems; do not change it',
+  review: 'Review code or a diff and report problems; do not change it',
   ui: 'Build or change what the screen looks like: layout, styles, components',
   qa: 'Test an app in a browser or by using it, and report what fails',
-  escribir: 'Write prose: documentation, an email, a proposal, a README',
-  datos: 'Analyse, clean or generate data: spreadsheets, CSV, SQL, scripts over data',
+  write: 'Write prose: documentation, an email, a proposal, a README',
+  data: 'Analyse, clean or generate data: spreadsheets, CSV, SQL, scripts over data',
   plan: 'Design, plan or decide an architecture before building',
 };
 
@@ -35,7 +38,7 @@ const QUESTIONS = {
   },
   kind: {
     type: 'choice',
-    instructions: 'What is the single main thing this request asks for? If it asks for several, choose the first one that has to be done. When two fit, a bug beats ui, and ui beats implementar.',
+    instructions: 'What is the single main thing this request asks for? If it asks for several, choose the first one that has to be done. When two fit, a bug beats ui, and ui beats implement.',
     criteria: { ...KINDS, none: 'None of these fits' },
   },
   depends: {
@@ -56,14 +59,29 @@ const QUESTIONS = {
   },
 };
 
-function getKey() {
-  if (process.env.ROUTER_JEV_KEY) return process.env.ROUTER_JEV_KEY;
+// The key comes from, in order: ROUTER_JEV_KEY, the macOS Keychain (service "typesafe-jev"), or a file
+// <router home>/jev.key readable only by you. The file exists because an editor extension does not inherit
+// your shell's environment. A file other users could read is ignored: doctor.js says so.
+function keyFile() {
+  const file = path.join(log.HOME, 'jev.key');
   try {
-    return execFileSync('security', ['find-generic-password', '-s', 'typesafe-jev', '-a', os.userInfo().username, '-w'],
-      { encoding: 'utf8', timeout: 700, stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null;
+    if (fs.statSync(file).mode & 0o077) return null;
+    return fs.readFileSync(file, 'utf8').trim() || null;
   } catch {
     return null;
   }
+}
+
+function getKey() {
+  if (process.env.ROUTER_JEV_KEY) return process.env.ROUTER_JEV_KEY;
+  if (process.platform === 'darwin') {
+    try {
+      const k = execFileSync('security', ['find-generic-password', '-s', 'typesafe-jev', '-a', os.userInfo().username, '-w'],
+        { encoding: 'utf8', timeout: 700, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      if (k) return k;
+    } catch { /* not in the Keychain */ }
+  }
+  return keyFile();
 }
 
 function parse(a) {
@@ -76,11 +94,11 @@ function parse(a) {
   // Reject Object.prototype keys and unknown choices.
   const { LADDERS } = require('./policy');
   if (k.choice !== 'none' && !Object.hasOwn(LADDERS, k.choice)) return null;
-  const [depende, sensible, irreversible, decidir, tipoProb] = [noul(a.depends), noul(a.sensitive), noul(a.irreversible), noul(a.decide), k.probabilities?.[k.choice]];
-  if ([depende, sensible, irreversible, decidir, tipoProb].some((v) => !num(v) || v < 0 || v > 1)) return null;
+  const [depends, sensitive, irreversible, decide, kindProb] = [noul(a.depends), noul(a.sensitive), noul(a.irreversible), noul(a.decide), k.probabilities?.[k.choice]];
+  if ([depends, sensitive, irreversible, decide, kindProb].some((v) => !num(v) || v < 0 || v > 1)) return null;
   // Score is a 0-4 mean; weight 1-5. An unsure distribution (low confidence) takes the heavier.
-  const peso = Math.min(5, Math.round(w.score) + 1 + (w.confidence < 0.4 ? 1 : 0));
-  return { peso, tipo: k.choice, tipoProb, depende, sensible, irreversible, decidir };
+  const weight = Math.min(5, Math.round(w.score) + 1 + (w.confidence < 0.4 ? 1 : 0));
+  return { weight, kind: k.choice, kindProb, depends, sensitive, irreversible, decide };
 }
 
 async function classify(message, { fetchImpl = fetch, getKey: key = getKey } = {}) {
@@ -102,4 +120,4 @@ async function classify(message, { fetchImpl = fetch, getKey: key = getKey } = {
   }
 }
 
-module.exports = { classify, parse, getKey, QUESTIONS };
+module.exports = { classify, parse, getKey, keyFile, QUESTIONS };

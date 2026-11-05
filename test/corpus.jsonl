@@ -1,40 +1,40 @@
-{"m": "Cambia el color del botón de guardar a azul en el formulario de ajustes", "tipo": "ui", "peso": 1}
-{"m": "¿Qué hace la función parseDuration en src/time.js y dónde se usa?", "tipo": "pregunta", "peso": 1}
-{"m": "Arregla el bug por el que el login falla cuando el email tiene mayúsculas", "tipo": "bug", "peso": 2}
-{"m": "Implementa un endpoint POST /api/notes con validación y tests", "tipo": "implementar", "peso": 3}
-{"m": "Revisa el diff de esta rama y dime si hay problemas de concurrencia", "tipo": "revision", "peso": 3}
-{"m": "Diseña la arquitectura para sincronizar eventos con Google Calendar manteniendo el modo offline", "tipo": "plan", "peso": 5}
-{"m": "Escribe el README del proyecto explicando cómo instalarlo y ejecutarlo", "tipo": "escribir", "peso": 2}
-{"m": "Analiza este CSV de ventas y calcula el margen por categoría", "tipo": "datos", "peso": 3}
-{"m": "Prueba en el navegador el flujo de registro completo y dime qué falla", "tipo": "qa", "peso": 3}
-{"m": "Refactoriza el módulo de pagos para separar el cálculo de impuestos, actualiza todos los llamadores y los tests", "tipo": "implementar", "peso": 4}
-{"m": "Despliega la última versión a producción y reinicia el servicio", "retener": true}
-{"m": "Rota la clave de la API de Stripe y actualiza el .env del servidor", "retener": true}
-{"m": "Borra todos los usuarios inactivos de la base de datos de producción", "retener": true}
-{"m": "Hazlo como te dije antes, con el mismo formato que la otra vez", "contexto": true}
-{"m": "Sigue con lo que estábamos haciendo y termina la parte que falta del módulo", "contexto": true}
-{"m": "Aplica el cambio que discutimos en el diseño de la pantalla de inicio", "contexto": true}
-{"m": "Add a loading spinner to the dashboard while the data is fetching", "tipo": "ui", "peso": 2}
-{"m": "Why does this TypeScript error say property does not exist on type never?", "tipo": "pregunta", "peso": 2}
-{"m": "Write a script that renames all the photos in a folder by date taken", "tipo": "implementar", "peso": 2}
-{"m": "Investiga por qué la consulta de reportes tarda 30 segundos y arréglalo", "tipo": "bug", "peso": 3}
-{"m": "Compara estas dos propuestas de pricing y redacta un correo para el cliente con la recomendación", "tipo": "escribir", "peso": 3}
-{"m": "Envía el correo a todos los clientes avisando del cambio de precio", "retener": true}
-{"m": "Crea un componente de tabla reutilizable con ordenación, paginación y accesibilidad por teclado", "tipo": "implementar", "peso": 3}
-{"m": "Corrige el typo 'recieve' en el comentario de la línea 40", "tipo": "implementar", "peso": 1}
-{"m": "Planifica la migración de la base de datos de MySQL a PostgreSQL con el mínimo de caída", "tipo": "plan", "peso": 5}
-{"m": "Genera datos de prueba para la tabla de pedidos con 500 filas realistas", "tipo": "datos", "peso": 2}
-{"m": "Haz un pago de prueba de 5 euros con la tarjeta real para comprobar el checkout", "retener": true}
-{"m": "Haz push forzado a main para limpiar el historial de la rama principal", "retener": true}
-{"m": "Escribe tests de integración para el servicio de notificaciones cubriendo reintentos y timeouts", "tipo": "implementar", "peso": 3}
-{"m": "Audita el sitio con un lector de pantalla y lista los fallos de accesibilidad", "tipo": "qa", "peso": 3}
-{"m": "¿Cómo hago un deploy a producción sin perder datos usando Docker Compose?", "tipo": "pregunta", "peso": 2}
-{"m": "Explica la diferencia entre git reset --hard y git revert y cuándo usar cada uno", "tipo": "pregunta", "peso": 1}
-{"m": "Escribe una función que borre los archivos temporales antiguos de un directorio y añade tests", "tipo": "implementar", "peso": 2}
-{"m": "Investiga cuál es la mejor tipografía para la landing de una consultora y recomienda una", "tipo": "pregunta", "peso": 3, "decidir": true}
-{"m": "Compara Postgres y SQLite para este proyecto y decide cuál usar", "tipo": "plan", "peso": 3, "decidir": true}
-{"m": "Diseña el enfoque para sincronizar eventos con Google Calendar y recomienda la arquitectura", "tipo": "plan", "peso": 4, "decidir": true}
-{"m": "Evalúa tres librerías de gráficos y elige la mejor para dashboards", "tipo": "pregunta", "peso": 3, "decidir": true}
-{"m": "Cambia el color del botón del menú a azul", "tipo": "ui", "peso": 1, "decidir": false}
-{"m": "Añade un campo teléfono al formulario de contacto", "tipo": "ui", "peso": 2, "decidir": false}
-{"m": "Arregla el typo en el título de la página de precios", "tipo": "implementar", "peso": 1, "decidir": false}
+{"m": "Change the colour of the save button to blue in the settings form", "kind": "ui", "weight": 1}
+{"m": "¿Qué hace la función parseDuration en src/time.js y dónde se usa?", "kind": "question", "weight": 1}
+{"m": "Fix the bug where login fails when the email has capital letters", "kind": "bug", "weight": 2}
+{"m": "Implement a POST /api/notes endpoint with validation and tests", "kind": "implement", "weight": 3}
+{"m": "Review the diff on this branch and tell me if there are concurrency problems", "kind": "review", "weight": 3}
+{"m": "Diseña la arquitectura para sincronizar eventos con Google Calendar manteniendo el modo offline", "kind": "plan", "weight": 5}
+{"m": "Write the project README explaining how to install and run it", "kind": "write", "weight": 2}
+{"m": "Analyse this sales CSV and compute the margin per category", "kind": "data", "weight": 3}
+{"m": "Test the full sign-up flow in the browser and tell me what fails", "kind": "qa", "weight": 3}
+{"m": "Refactor the payments module to separate the tax calculation, update every caller and the tests", "kind": "implement", "weight": 4}
+{"m": "Deploy the latest version to production and restart the service", "keep": true}
+{"m": "Rotate the Stripe API key and update the server's .env", "keep": true}
+{"m": "Delete every inactive user from the production database", "keep": true}
+{"m": "Hazlo como te dije antes, con el mismo formato que la otra vez", "context": true}
+{"m": "Carry on with what we were doing and finish the missing part of the module", "context": true}
+{"m": "Apply the change we discussed in the home screen design", "context": true}
+{"m": "Add a loading spinner to the dashboard while the data is fetching", "kind": "ui", "weight": 2}
+{"m": "Why does this TypeScript error say property does not exist on type never?", "kind": "question", "weight": 2}
+{"m": "Write a script that renames all the photos in a folder by date taken", "kind": "implement", "weight": 2}
+{"m": "Find out why the reports query takes 30 seconds and fix it", "kind": "bug", "weight": 3}
+{"m": "Compare these two pricing proposals and write an email to the customer with the recommendation", "kind": "write", "weight": 3}
+{"m": "Send the email to all customers announcing the price change", "keep": true}
+{"m": "Create a reusable table component with sorting, pagination and keyboard accessibility", "kind": "implement", "weight": 3}
+{"m": "Fix the typo 'recieve' in the comment on line 40", "kind": "implement", "weight": 1}
+{"m": "Plan the migration of the database from MySQL to PostgreSQL with minimal downtime", "kind": "plan", "weight": 5}
+{"m": "Generate test data for the orders table with 500 realistic rows", "kind": "data", "weight": 2}
+{"m": "Make a 5 euro test payment with the real card to check the checkout", "keep": true}
+{"m": "Force-push to main to clean up the history of the main branch", "keep": true}
+{"m": "Write integration tests for the notifications service covering retries and timeouts", "kind": "implement", "weight": 3}
+{"m": "Audit the site with a screen reader and list the accessibility failures", "kind": "qa", "weight": 3}
+{"m": "How do I deploy to production without losing data using Docker Compose?", "kind": "question", "weight": 2}
+{"m": "Explain the difference between git reset --hard and git revert and when to use each", "kind": "question", "weight": 1}
+{"m": "Write a function that deletes old temporary files from a directory and add tests", "kind": "implement", "weight": 2}
+{"m": "Research which is the best typeface for a consultancy landing page and recommend one", "kind": "question", "weight": 3, "decide": true}
+{"m": "Compare Postgres and SQLite for this project and decide which to use", "kind": "plan", "weight": 3, "decide": true}
+{"m": "Design the approach to sync events with Google Calendar and recommend the architecture", "kind": "plan", "weight": 4, "decide": true}
+{"m": "Evaluate three charting libraries and choose the best one for dashboards", "kind": "question", "weight": 3, "decide": true}
+{"m": "Change the colour of the menu button to blue", "kind": "ui", "weight": 1, "decide": false}
+{"m": "Add a phone field to the contact form", "kind": "ui", "weight": 2, "decide": false}
+{"m": "Fix the typo in the title of the pricing page", "kind": "implement", "weight": 1, "decide": false}

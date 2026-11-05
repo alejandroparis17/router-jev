@@ -9,19 +9,19 @@ const START = '<!-- router:start -->';
 const END = '<!-- router:end -->';
 
 const SECTION = `${START}
-## Router de agentes (Jev)
+## Agent router (Jev)
 
-Un hook añade a veces una línea \`[router] → …\` con el agente que debe hacer el trabajo según su peso. **Seguirla es lo predeterminado.** Antes de responder a un mensaje que la lleve, carga la skill \`router-jev\` y sigue su tabla.
+A hook sometimes adds a line \`[router] → …\` naming the agent that should do the work, chosen by its weight. **Following it is the default.** Before answering a message that carries one, load the skill \`router-jev\` and follow its table.
 
-- \`sesión actual\`: sigue tú; no delegues.
-- Si no sigues una recomendación de delegar, dilo en una línea con el motivo.
-- Si la persona dice "hazlo tú", no delegues. Nunca pongas secretos en un encargo.
+- \`session\`: you carry on; do not delegate.
+- If you do not follow a recommendation to delegate, say so in one line with the reason.
+- If the person says "do it yourself", do not delegate. Never put secrets in a brief.
 ${END}
 `;
 
 function addHook(settings, command) {
   const existing = settings.hooks?.UserPromptSubmit ?? [];
-  if (!Array.isArray(existing)) throw new Error('settings.json: hooks.UserPromptSubmit existe pero no es una lista. Arréglalo a mano antes de instalar.');
+  if (!Array.isArray(existing)) throw new Error('settings.json: hooks.UserPromptSubmit exists but is not a list. Fix it by hand before installing.');
   if (existing.some((g) => g?.hooks?.some((h) => h?.command === command))) return settings;
   return {
     ...settings,
@@ -33,7 +33,7 @@ function addHook(settings, command) {
 function addGuard(settings, command) {
   const add = (event, group) => {
     const existing = settings.hooks?.[event] ?? [];
-    if (!Array.isArray(existing)) throw new Error(`settings.json: hooks.${event} existe pero no es una lista. Arréglalo a mano antes de instalar.`);
+    if (!Array.isArray(existing)) throw new Error(`settings.json: hooks.${event} exists but is not a list. Fix it by hand before installing.`);
     if (existing.some((g) => g?.hooks?.some((h) => h?.command === command))) return settings;
     return { ...settings, hooks: { ...settings.hooks, [event]: [...existing, group] } };
   };
@@ -49,7 +49,7 @@ function withSection(text, section) {
   const i = text.indexOf(START);
   const j = text.indexOf(END);
   if (ns !== 1 || ne !== 1 || j < i) {
-    throw new Error(`CLAUDE.md: los marcadores ${START} y ${END} están mal (sueltos, repetidos o al revés). Deja uno de cada, START antes de END, o bórralos, y vuelve a ejecutar.`);
+    throw new Error(`CLAUDE.md: the markers ${START} and ${END} are wrong (loose, repeated or reversed). Leave one of each, START before END, or delete them, and run again.`);
   }
   return text.slice(0, i) + section.trimEnd() + text.slice(j + END.length);
 }
@@ -95,40 +95,77 @@ function planSkills(dir, src = SKILL_SRC) {
   return names.map((n) => plan(`skill ${n}`, fs.readFileSync(path.join(src, n, 'SKILL.md'), 'utf8'), path.join(dir, 'skills', n, 'SKILL.md')));
 }
 
-function main(apply, dir = CLAUDE_DIR) {
+const expand = (p) => path.resolve(p.startsWith('~') ? path.join(os.homedir(), p.slice(1)) : p);
+
+// Hooks the router added, taken out again. Anything else in settings.json stays.
+function removeHooks(settings, commands) {
+  const hooks = { ...settings.hooks };
+  for (const event of Object.keys(hooks)) {
+    if (!Array.isArray(hooks[event])) continue;
+    const kept = hooks[event]
+      .map((g) => (Array.isArray(g?.hooks) ? { ...g, hooks: g.hooks.filter((h) => !commands.includes(h?.command)) } : g))
+      .filter((g) => !Array.isArray(g?.hooks) || g.hooks.length);
+    if (kept.length) hooks[event] = kept; else delete hooks[event];
+  }
+  const { hooks: _old, ...rest } = settings;
+  return Object.keys(hooks).length ? { ...rest, hooks } : rest;
+}
+
+function withoutSection(text) {
+  const i = text.indexOf(START);
+  const j = text.indexOf(END);
+  if (i === -1 || j < i) return text;
+  const before = text.slice(0, i).replace(/\n+$/, '');
+  const after = text.slice(j + END.length).replace(/^\n+/, '');
+  const out = before && after ? `${before}\n\n${after}` : before || after;
+  return out ? out.replace(/\n*$/, '\n') : '';
+}
+
+// Earlier versions installed these subagents under other names. Ours (marked) are removed; a foreign file is not.
+const OBSOLETE = ['router-ligero', 'router-pensador'];
+function planObsolete(dir) {
+  return OBSOLETE.flatMap((n) => {
+    const dest = path.join(dir, 'agents', `${n}.md`);
+    try { return fs.readFileSync(dest, 'utf8').includes(MANAGED) ? [{ name: `${n} (obsolete)`, dest, action: 'remove' }] : []; } catch { return []; }
+  });
+}
+
+function main(apply, dir = CLAUDE_DIR, { repos, uninstall = false } = {}) {
   const settingsFile = path.join(dir, 'settings.json');
   const claudeFile = path.join(dir, 'CLAUDE.md');
   const reposFile = path.join(dir, 'router', 'repos.json');
   const command = `node ${path.join(dir, 'router', 'route.js')}`;
+  const guardCommand = `node ${path.join(dir, 'router', 'guard.js')}`;
 
   let settings;
   try { settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8')); }
-  catch { throw new Error(`${settingsFile} no se puede leer o no es JSON válido. No se ha escrito nada.`); }
-  const guardCommand = `node ${path.join(dir, 'router', 'guard.js')}`;
-  const nextSettings = addGuard(addHook(settings, command), guardCommand);
+  catch { throw new Error(`${settingsFile} cannot be read or is not valid JSON. Nothing was written.`); }
   const hadClaude = fs.existsSync(claudeFile);
   const claude = hadClaude ? fs.readFileSync(claudeFile, 'utf8') : '';
+  const agents = [...planAgents(dir), ...planSkills(dir)];
+
+  if (uninstall) return uninstallAll({ apply, settings, settingsFile, claude, claudeFile, hadClaude, agents, commands: [command, guardCommand] });
+
+  const nextSettings = addGuard(addHook(settings, command), guardCommand);
   const nextClaude = withSection(claude, SECTION);
-  const repos = path.join(os.homedir(), 'Proyectos');
   const settingsChanged = nextSettings !== settings;
   const claudeChanged = nextClaude !== claude;
   const reposMissing = !fs.existsSync(reposFile);
-  const agents = [...planAgents(dir), ...planSkills(dir)];
-  const agentsToWrite = agents.filter((a) => a.action === 'create' || a.action === 'update');
-
-  console.log(`settings.json: ${settingsChanged ? `añade los hooks → ${command} y ${guardCommand}` : 'ya tiene los hooks'}`);
-  console.log(`CLAUDE.md: ${claudeChanged ? 'añade o actualiza la sección "Router de agentes (Jev)"' : 'sin cambios'}`);
-  console.log(`repos.json: ${reposMissing ? `se crea con ${repos}` : 'ya existe'}`);
-  console.log(`subagentes: ${agents.map((a) => `${a.name} (${a.action})`).join(', ') || 'ninguno'}`);
-  if (!apply) return console.log('\nSimulación. Para escribirlo: node install.js --apply');
-  if (!settingsChanged && !claudeChanged && !reposMissing && !agentsToWrite.length) return console.log('\nNada que hacer.');
-
-  if (settingsChanged) {
-    const bak = backup(settingsFile);
-    atomicWrite(settingsFile, JSON.stringify(nextSettings, null, 2) + '\n');
-    try { JSON.parse(fs.readFileSync(settingsFile, 'utf8')); }
-    catch (e) { fs.copyFileSync(bak, settingsFile); throw new Error(`settings.json quedó inválido tras escribir; restaurado desde ${bak}.`); }
+  const repoList = (repos ?? []).map(expand);
+  if (apply && reposMissing && !repoList.length) {
+    throw new Error('repos.json does not exist yet. Say where the router may work: node install.js --apply --repos ~/code[,~/other]. Only prompts typed inside those folders are ever sent to Jev.');
   }
+  const agentsToWrite = agents.filter((a) => a.action === 'create' || a.action === 'update');
+  const obsolete = planObsolete(dir);
+
+  console.log(`settings.json: ${settingsChanged ? `adds the hooks → ${command} and ${guardCommand}` : 'already has the hooks'}`);
+  console.log(`CLAUDE.md: ${claudeChanged ? 'adds or updates the section "Agent router (Jev)"' : 'unchanged'}`);
+  console.log(`repos.json: ${reposMissing ? (repoList.length ? `created with ${repoList.join(', ')}` : 'missing: pass --repos ~/code[,~/other]') : 'exists'}`);
+  console.log(`subagents and skill: ${[...agents, ...obsolete].map((a) => `${a.name} (${a.action})`).join(', ') || 'none'}`);
+  if (!apply) return console.log('\nDry run. To write it: node install.js --apply' + (reposMissing ? ' --repos <folders>' : ''));
+  if (!settingsChanged && !claudeChanged && !reposMissing && !agentsToWrite.length && !obsolete.length) return console.log('\nNothing to do.');
+
+  if (settingsChanged) writeChecked(settingsFile, nextSettings, settings);
   if (claudeChanged) {
     if (hadClaude) backup(claudeFile);
     atomicWrite(claudeFile, nextClaude);
@@ -137,15 +174,48 @@ function main(apply, dir = CLAUDE_DIR) {
     fs.mkdirSync(path.dirname(a.dest), { recursive: true });
     atomicWrite(a.dest, a.want);
   }
+  for (const o of obsolete) fs.rmSync(o.dest, { force: true });
   if (reposMissing) {
     fs.mkdirSync(path.dirname(reposFile), { recursive: true });
-    atomicWrite(reposFile, JSON.stringify({ repos: [repos] }, null, 2) + '\n');
+    atomicWrite(reposFile, JSON.stringify({ repos: repoList }, null, 2) + '\n');
   }
-  console.log('\nHecho. Copias: *.bak-router. Abre una sesión nueva de Claude Code para que cargue el hook.');
+  console.log('\nDone. Backups: *.bak-router. Open a new Claude Code session so it loads the hooks. Then run: node doctor.js');
+}
+
+function writeChecked(file, next, previous) {
+  const bak = backup(file);
+  atomicWrite(file, JSON.stringify(next, null, 2) + '\n');
+  try { JSON.parse(fs.readFileSync(file, 'utf8')); }
+  catch { fs.copyFileSync(bak, file); throw new Error(`settings.json was invalid after writing; restored from ${bak}.`); }
+  return previous;
+}
+
+// Undoes the install and nothing else: the hooks, the CLAUDE.md section and the files carrying the managed
+// marker. The router folder, its log and config.json are yours and stay.
+function uninstallAll({ apply, settings, settingsFile, claude, claudeFile, hadClaude, agents, commands }) {
+  const nextSettings = removeHooks(settings, commands);
+  const settingsChanged = JSON.stringify(nextSettings) !== JSON.stringify(settings);
+  const nextClaude = withoutSection(claude);
+  const claudeChanged = nextClaude !== claude;
+  const mine = agents.filter((a) => a.action === 'same' || a.action === 'update');
+  console.log(`settings.json: ${settingsChanged ? 'removes the router hooks' : 'no router hooks found'}`);
+  console.log(`CLAUDE.md: ${claudeChanged ? 'removes the "Agent router (Jev)" section' : 'no section found'}`);
+  console.log(`subagents and skill: ${mine.length ? `removes ${mine.map((a) => a.name).join(', ')}` : 'none of ours found'}`);
+  if (!apply) return console.log('\nDry run. To remove it: node install.js --uninstall --apply');
+  if (settingsChanged) writeChecked(settingsFile, nextSettings, settings);
+  if (claudeChanged) {
+    if (hadClaude) backup(claudeFile);
+    atomicWrite(claudeFile, nextClaude);
+  }
+  for (const a of mine) fs.rmSync(a.dest, { force: true });
+  console.log('\nRemoved. Your router folder, log and config.json are untouched; delete the folder to remove them.');
 }
 
 if (require.main === module) {
-  try { main(process.argv.includes('--apply')); }
-  catch (e) { console.error(`Error: ${e.message}`); process.exit(1); }
+  const argv = process.argv.slice(2);
+  const i = argv.indexOf('--repos');
+  try {
+    main(argv.includes('--apply'), CLAUDE_DIR, { repos: i >= 0 && argv[i + 1] ? argv[i + 1].split(',').filter(Boolean) : undefined, uninstall: argv.includes('--uninstall') });
+  } catch (e) { console.error(`Error: ${e.message}`); process.exit(1); }
 }
-module.exports = { addHook, addGuard, withSection, SECTION, main, planAgents, planSkills };
+module.exports = { addHook, addGuard, removeHooks, withoutSection, withSection, SECTION, main, planAgents, planSkills };

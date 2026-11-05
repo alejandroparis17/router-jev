@@ -2,70 +2,70 @@
 name: router-jev
 description: Use when a "[router] →" line appears in the context, before answering the person or starting the task; also when deciding whether to delegate work to Codex, Antigravity (agy) or a Claude subagent, or when asked how the agent router is working.
 ---
-<!-- router-managed: lo escribe ~/.claude/router/install.js; no lo edites aquí -->
+<!-- router-managed: written by the router's install.js; do not edit here -->
 
-# Router de agentes (Jev)
+# Agent router (Jev)
 
-## Principio
+## Principle
 
-La línea `[router] →` dice qué modelo debe hacer el trabajo según su peso. **Seguirla es lo predeterminado.** La sesión conversa, coordina y revisa; el trabajo va al modelo que le toca. Opus no cambia colores de un menú; Sonnet no diseña una infraestructura.
+The `[router] →` line says which model should do the work, by its weight. **Following it is the default.** The session talks, coordinates and reviews; the work goes to the model it belongs to. Opus does not change the colour of a menu; Sonnet does not design an infrastructure.
 
-## Leer la línea
+## Reading the line
 
-| Aparece | Haces |
+| You see | You do |
 |---|---|
-| `sesión actual (…)` | Sigues tú. No delegues. |
-| `claude-haiku` | Agent con `subagent_type: router-ligero` y un encargo completo. |
-| `claude-opus` | Para decidir o responder una pregunta pesada: `router-pensador`. Para implementar (motivo `no-quota`): subagente general con `model: opus`. |
-| `claude-sonnet` | Subagente general con `model: sonnet`. |
-| `codex-reserve` · `codex-astra` · `agy-flash` · `agy-opus` | `node ~/.claude/router/dispatch.js <agente> --cwd <repo>` con el encargo por stdin. Editan dentro del repo; `agy` no puede ejecutar comandos, así que las comprobaciones las ejecutas tú. |
-| `decidir: X · implementar: Y` | Paso 1: X entrega SOLO una conclusión escrita (añade `--think` si X va por `dispatch.js`: sin permiso de escritura). Paso 2: esa conclusión, literal, dentro del encargo para Y. `implementar: session` = la aplicas tú. |
-| `solo pensar (…)` | Solo el paso 1; cuenta la conclusión a la persona. |
-| `encargo autocontenido` | Tú tienes la conversación y el delegado no: el encargo la lleva escrita. |
-| `revisa: X` | Al recibir el trabajo, pide esa revisión (`codex-review` = `dispatch.js codex-review`). |
-| `sube a: Y` | Si falla o no cumple el criterio de hecho, delega en Y (máximo 2 subidas). |
+| `session (…)` | You carry on. Do not delegate. |
+| `claude-haiku` | Agent with `subagent_type: router-light` and a complete brief. |
+| `claude-opus` | To decide, or to answer a heavy question: `router-thinker`. To implement (reason `no-quota`): a general subagent with `model: opus`. |
+| `claude-sonnet` | A general subagent with `model: sonnet`. |
+| `codex-reserve` · `codex-astra` · `agy-flash` · `agy-opus` | `node ~/.claude/router/dispatch.js <agent> --cwd <repo>` with the brief on stdin. They edit inside the repo; `agy` cannot run commands, so you run the checks. |
+| `decide: X · implement: Y` | Step 1: X delivers ONLY a written conclusion (add `--think` if X goes through `dispatch.js`: it then has no write access). Step 2: that conclusion, verbatim, inside the brief for Y. `implement: session` means you apply it yourself. |
+| `think only (…)` | Step 1 only; tell the person the conclusion. |
+| `self-contained brief` | You have the conversation and the delegate does not: the brief carries it in writing. |
+| `review: X` | When the work comes back, ask for that review (`codex-review` = `dispatch.js codex-review`). |
+| `escalate to: Y` | If it fails or misses the definition of done, delegate to Y (at most 2 escalations). |
 
-## El encargo
+## The brief
 
-Un encargo tiene, en este orden:
-1. **Objetivo**, en una frase.
-2. **Lo decidido en la conversación** que afecta a la tarea (nombres, valores, restricciones, lo que la persona rechazó).
-3. **Zona del repo**: archivos o carpetas, y qué ya existe.
-4. **Criterio de hecho comprobable**: la prueba, el comando o lo que debe verse.
-5. **Skills** que nombre la línea.
+A brief has, in this order:
+1. **Goal**, in one sentence.
+2. **What was decided in the conversation** that affects the task (names, values, constraints, what the person rejected).
+3. **Zone of the repo**: files or folders, and what already exists.
+4. **A checkable definition of done**: the test, the command, or what must be visible.
+5. **Skills** that the line names.
 
-Sin secretos. El delegado no hace commit: lo haces tú, y solo si la persona lo pidió.
+No secrets. The delegate does not commit: you do, and only if the person asked.
 
-## Al recibir el resultado
+## When the result comes back
 
-Lee el JSON de `dispatch.js` (`ok`, `reason`, `output`). Comprueba el criterio de hecho tú mismo: lo que diga el delegado no es prueba. Si `unavailable: true`, ese agente se quedó sin cuota: repite el encargo con `agy-opus` si era `codex-astra`, con `agy-flash` si era `codex-reserve`; si Antigravity tampoco puede, usa un subagente general con `model: opus` o `model: sonnet`, el mismo nivel.
+Read the JSON from `dispatch.js` (`ok`, `reason`, `output`). Check the definition of done yourself: what the delegate says is not proof. If `unavailable: true`, that agent is out of quota: repeat the brief with `agy-opus` if it was `codex-astra`, with `agy-flash` if it was `codex-reserve`; if Antigravity cannot either, use a general subagent with `model: opus` or `model: sonnet`, the same tier.
 
-Si delegaste con la herramienta Agent, registra el agente usado: `node ~/.claude/router/dispatch.js --record <agente>`.
+If you delegated with the Agent tool, record the agent used: `node ~/.claude/router/dispatch.js --record <agent>`.
 
-Si el resultado empieza por `ESCALATE:`, el delegado paró porque no era lo que parecía: pásalo al `sube a:` de la línea o, si no lo hay, un nivel por encima, con esos hechos en el encargo. Una sola subida por este motivo; si vuelve a fallar, cuéntaselo a la persona. Si `reason` es `denied`, no era falta de capacidad sino de permiso: mira `denied` y `git status`, y no subas de modelo.
+If the result starts with `ESCALATE:`, the delegate stopped because the task was not what it looked like: pass it to the line's `escalate to:` or, if there is none, one tier up, with those facts in the brief. Only one escalation for this reason; if it fails again, tell the person. If `reason` is `denied`, it was not a lack of capability but of permission: look at `denied` and `git status`, and do not move up a model.
 
-## Si el guard te bloquea
+## If the guard blocks you
 
-Mientras haya una delegación pendiente, la sesión puede leer y preparar el encargo, pero no editar el repo. No lo rodees con otro comando. Delega; o si de verdad no procede, ejecuta `node ~/.claude/router/dispatch.js --release <motivo>` (`person`, `in-progress`, `no-brief` o `question`) y dilo en una línea.
+While a delegation is pending, the session may read and prepare the brief but not edit the repo. Do not go round it with another command. Delegate; or if it really should not be delegated, run `node ~/.claude/router/dispatch.js --release <reason>` (`person`, `in-progress`, `no-brief` or `question`) and say why in one line.
 
-## Excusas que ya se dieron (y su respuesta)
+## Excuses already given (and the answer)
 
-| Excusa | Realidad |
+| Excuse | Reality |
 |---|---|
-| "Depende de lo que hablamos" | Por eso existe `encargo autocontenido`: escribe lo hablado en el punto 2. |
-| "Es una línea, la hago yo" | Si la línea dice `claude-haiku`, el coste lo pone el modelo de la sesión, no el tamaño. Lanza `router-ligero`. |
-| "Ya tengo el contexto cargado" | El contexto se transmite en el encargo; el modelo caro no. |
-| "Seguro que sigue sin cuota" | Inténtalo: `dispatch.js` lo marca solo si falla, y el router ya lo evita. |
-| "Es investigación, no revisión" | Si el tipo no encaja, sigue igual el agente: el peso es lo que cuenta. |
+| "It depends on what we discussed" | That is what `self-contained brief` is for: write what was discussed into point 2. |
+| "It is one line, I will do it" | If the line says `claude-haiku`, the cost is set by the session's model, not by the size. Launch `router-light`. |
+| "I already have the context loaded" | Context travels in the brief; the expensive model does not. |
+| "It surely still has no quota" | Try it: `dispatch.js` marks it only if it fails, and the router already avoids it. |
+| "It is research, not review" | If the kind does not fit, the agent is still the one named: the weight is what counts. |
 
-Solo te quedas la tarea si la persona dijo "hazlo tú", si ya la tienes a medio hacer en esta sesión, o si de verdad no puedes escribir el encargo. Entonces dilo en una línea con el motivo.
+You keep the task only if the person said "do it yourself", if you already have it half done in this session, or if you really cannot write the brief. Then say so in one line with the reason.
 
-## Señales de que estás a punto de saltártelo
+## Signs you are about to skip it
 
-- Empiezas a editar archivos después de una línea que no dice `sesión actual`.
-- Piensas "es más rápido si…".
-- Justificas el no delegar sin escribir la línea del motivo.
+- You start editing files after a line that does not say `session`.
+- You think "it is faster if…".
+- You justify not delegating without writing the one line of reason.
 
-## Comprobar cómo va
+## Checking how it is going
 
-`node ~/.claude/router/report.js --since AAAA-MM-DD` (delegaciones reales, fallos, guard, cuota real, tokens por modelo). `node ~/.claude/router/doctor.js` comprueba la instalación.
+`node ~/.claude/router/report.js --since YYYY-MM-DD` (real delegations, failures, guard, real quota, tokens by model). `node ~/.claude/router/doctor.js` checks the installation.

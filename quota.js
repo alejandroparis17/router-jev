@@ -6,6 +6,7 @@ const { spawn, execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const log = require('./log');
+const config = require('./config');
 
 const FILE = () => path.join(log.HOME, 'quota.json');
 const FRESH_MS = 30 * 60e3;
@@ -97,7 +98,8 @@ function refreshIfStale(now = Date.now(), snap = snapshot()) {
 }
 
 async function main() {
-  const [codex, agy] = await Promise.all([readCodex(), readAgy()]);
+  const off = config.load().disable;
+  const [codex, agy] = await Promise.all([off.includes('codex') ? null : readCodex(), off.includes('agy') ? {} : readAgy()]);
   const snap = { at: Date.now(), ...(codex && { codex }), ...agy };
   const tmp = `${FILE()}.${process.pid}`;
   fs.writeFileSync(tmp, JSON.stringify(snap), { mode: 0o600 });
