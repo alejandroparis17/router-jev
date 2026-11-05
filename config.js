@@ -20,7 +20,7 @@ function load(home = log.HOME) {
   let c = {};
   try { c = JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')); } catch { /* defaults */ }
   const models = { ...DEFAULT_MODELS };
-  if (c && typeof c.models === 'object' && !Array.isArray(c.models)) {
+  if (c?.models && typeof c.models === 'object' && !Array.isArray(c.models)) {
     for (const [agent, model] of Object.entries(c.models)) {
       if (Object.hasOwn(DEFAULT_MODELS, agent) && typeof model === 'string' && SAFE_MODEL.test(model)) models[agent] = model;
     }

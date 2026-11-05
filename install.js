@@ -139,12 +139,15 @@ function main(apply, dir = CLAUDE_DIR, { repos, uninstall = false } = {}) {
 
   let settings;
   try { settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8')); }
-  catch { throw new Error(`${settingsFile} cannot be read or is not valid JSON. Nothing was written.`); }
+  catch (e) {
+    if (e.code !== 'ENOENT') throw new Error(`${settingsFile} cannot be read or is not valid JSON. Nothing was written.`);
+    settings = {}; // a fresh Claude Code has no settings.json yet
+  }
   const hadClaude = fs.existsSync(claudeFile);
   const claude = hadClaude ? fs.readFileSync(claudeFile, 'utf8') : '';
   const agents = [...planAgents(dir), ...planSkills(dir)];
 
-  if (uninstall) return uninstallAll({ apply, settings, settingsFile, claude, claudeFile, hadClaude, agents, commands: [command, guardCommand] });
+  if (uninstall) return uninstallAll({ apply, settings, settingsFile, claude, claudeFile, hadClaude, agents: [...agents, ...planObsolete(dir).map((o) => ({ ...o, action: 'same' }))], commands: [command, guardCommand] });
 
   const nextSettings = addGuard(addHook(settings, command), guardCommand);
   const nextClaude = withSection(claude, SECTION);
@@ -165,7 +168,7 @@ function main(apply, dir = CLAUDE_DIR, { repos, uninstall = false } = {}) {
   if (!apply) return console.log('\nDry run. To write it: node install.js --apply' + (reposMissing ? ' --repos <folders>' : ''));
   if (!settingsChanged && !claudeChanged && !reposMissing && !agentsToWrite.length && !obsolete.length) return console.log('\nNothing to do.');
 
-  if (settingsChanged) writeChecked(settingsFile, nextSettings, settings);
+  if (settingsChanged) writeChecked(settingsFile, nextSettings);
   if (claudeChanged) {
     if (hadClaude) backup(claudeFile);
     atomicWrite(claudeFile, nextClaude);
@@ -182,12 +185,15 @@ function main(apply, dir = CLAUDE_DIR, { repos, uninstall = false } = {}) {
   console.log('\nDone. Backups: *.bak-router. Open a new Claude Code session so it loads the hooks. Then run: node doctor.js');
 }
 
-function writeChecked(file, next, previous) {
-  const bak = backup(file);
+function writeChecked(file, next) {
+  const bak = fs.existsSync(file) ? backup(file) : null;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
   atomicWrite(file, JSON.stringify(next, null, 2) + '\n');
   try { JSON.parse(fs.readFileSync(file, 'utf8')); }
-  catch { fs.copyFileSync(bak, file); throw new Error(`settings.json was invalid after writing; restored from ${bak}.`); }
-  return previous;
+  catch {
+    if (bak) fs.copyFileSync(bak, file); else fs.rmSync(file, { force: true });
+    throw new Error(`settings.json was invalid after writing; ${bak ? `restored from ${bak}` : 'removed'}.`);
+  }
 }
 
 // Undoes the install and nothing else: the hooks, the CLAUDE.md section and the files carrying the managed
@@ -202,7 +208,7 @@ function uninstallAll({ apply, settings, settingsFile, claude, claudeFile, hadCl
   console.log(`CLAUDE.md: ${claudeChanged ? 'removes the "Agent router (Jev)" section' : 'no section found'}`);
   console.log(`subagents and skill: ${mine.length ? `removes ${mine.map((a) => a.name).join(', ')}` : 'none of ours found'}`);
   if (!apply) return console.log('\nDry run. To remove it: node install.js --uninstall --apply');
-  if (settingsChanged) writeChecked(settingsFile, nextSettings, settings);
+  if (settingsChanged) writeChecked(settingsFile, nextSettings);
   if (claudeChanged) {
     if (hadClaude) backup(claudeFile);
     atomicWrite(claudeFile, nextClaude);

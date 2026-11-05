@@ -154,6 +154,7 @@ async function main() {
   }
 
   let d = avoidDownAgent(decide(j));
+  if (d.reviewer && down(d.reviewer)) d = { ...d, reviewer: null }; // never ask for a review from a plan that is off or spent
   const model = sessionModel(transcript_path);
   if (model === 'opus' && j.kind !== 'question' && j.weight <= 2 &&
       ((d.agent === 'session' && d.why === 'simple') || (d.agent === 'codex-reserve' && d.why === 'ladder'))) {

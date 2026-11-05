@@ -205,3 +205,22 @@ test('subagents installed by an earlier version under other names are removed; a
   assert.ok(!fs.existsSync(path.join(d, 'agents', 'router-ligero.md')));
   assert.equal(fs.readFileSync(path.join(d, 'agents', 'router-pensador.md'), 'utf8'), 'MINE');
 });
+
+test('--uninstall also removes subagents left by the previous version, never a foreign file', () => {
+  const d = tmp('{}', 'x\n');
+  quiet(() => main(true, d, R));
+  fs.writeFileSync(path.join(d, 'agents', 'router-ligero.md'), 'old\n<!-- router-managed: x -->');
+  fs.writeFileSync(path.join(d, 'agents', 'router-pensador.md'), 'MINE');
+  quiet(() => main(true, d, { uninstall: true }));
+  assert.ok(!fs.existsSync(path.join(d, 'agents', 'router-ligero.md')));
+  assert.equal(fs.readFileSync(path.join(d, 'agents', 'router-pensador.md'), 'utf8'), 'MINE');
+});
+
+test('a fresh Claude Code with no settings.json is fine: it is created, and uninstall brings it back to empty', () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'router-'));
+  quiet(() => main(true, d, R));
+  assert.ok(JSON.parse(fs.readFileSync(path.join(d, 'settings.json'), 'utf8')).hooks.PreToolUse);
+  assert.ok(!fs.existsSync(path.join(d, 'settings.json.bak-router')), 'nothing to back up');
+  quiet(() => main(true, d, { uninstall: true }));
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(d, 'settings.json'), 'utf8')), {});
+});

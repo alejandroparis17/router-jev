@@ -12,7 +12,7 @@ const home = (c) => {
 };
 
 test('no file, a broken file or nonsense means the defaults', () => {
-  for (const c of [undefined, '{nope', '[]', 'null', '"x"']) {
+  for (const c of [undefined, '{nope', '[]', 'null', '"x"', { models: null }, { models: [] }, { disable: null }, { models: 'x' }]) {
     assert.deepEqual(config.load(home(c)), { models: config.DEFAULT_MODELS, disable: [] });
   }
 });

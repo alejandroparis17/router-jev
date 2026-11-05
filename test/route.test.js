@@ -424,3 +424,14 @@ test('a plan the person does not have is disabled in config.json: the tier is ke
     assert.match((await s.run({ prompt: MESSAGE, cwd: s.repo })).out, new RegExp(`^\\[router\\] → ${want}`), disable.join('+'));
   }
 });
+
+test('a reviewer from a disabled plan is dropped, not recommended', async (t) => {
+  const heavyQuestion = { ...ANSWERS, weight: { type: 'score', score: 3.5, confidence: 0.9 }, kind: { type: 'choice', choice: 'question', probabilities: { question: 0.9 }, confidence: 0.8 } };
+  const on = await setup({ answers: heavyQuestion }); t.after(on.close);
+  assert.match((await on.run({ prompt: MESSAGE, cwd: on.repo })).out, /review: codex-review/);
+  const off = await setup({ answers: heavyQuestion }); t.after(off.close);
+  fs.writeFileSync(path.join(off.home, 'config.json'), JSON.stringify({ disable: ['codex'] }));
+  const { out } = await off.run({ prompt: MESSAGE, cwd: off.repo });
+  assert.match(out, /→ claude-opus/);
+  assert.doesNotMatch(out, /codex/);
+});
