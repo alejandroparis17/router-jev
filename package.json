@@ -6,7 +6,7 @@
   "private": true,
   "engines": { "node": ">=20" },
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test test/*.test.js",
     "doctor": "node doctor.js",
     "eval": "node eval.js",
     "report": "node report.js"
