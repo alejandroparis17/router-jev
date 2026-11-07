@@ -51,6 +51,16 @@ test('shell edits are caught; reading is not', () => {
   for (const c of ['cat a.js', 'grep -n "a > b" f', 'ls 2>/dev/null', 'npm test 2>&1 | tail -5', 'sed -n 1,5p f', 'cat x > /tmp/y', 'node x.js > "$S/out.json"', 'echo hi >&2', "node -e 'a>1'", 'git status', 'python3 - <<EOF\nif a > b: pass\nEOF', 'git commit -q -F - <<EOF\nx -> y\nEOF', 'f() => 1']) assert.ok(!bashWrites(c), c);
 });
 
+test('a redirect counts only when it writes inside the repo: notes elsewhere or in a scratch folder pass', () => {
+  const at = (c) => bashWrites(c, '/repo');
+  assert.ok(at('echo x > src/a.js'));
+  assert.ok(at('cat >> /repo/docs/a.md <<EOF\nx\nEOF'));
+  for (const c of ['cat >> ~/vault/note.md <<EOF\nx\nEOF', 'echo x >> /Users/someone/vault/n.md', 'cat >> .superpowers/sdd/progress.md <<EOF\nx\nEOF', 'echo x > ~/.claude/projects/m/memory.md', 'echo x > /tmp/a']) {
+    assert.ok(!at(c), c);
+  }
+  assert.equal(verdict(['claude-haiku'], { tool_name: 'Write', tool_input: { file_path: '/repo/.superpowers/sdd/plan.md' }, cwd: '/repo' }).action, 'allow');
+});
+
 test('pending is per session and expires', () => {
   const h = home();
   setPending('a', ['codex-astra', 'claude-haiku'], h, 1000);

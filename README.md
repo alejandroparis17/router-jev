@@ -27,7 +27,7 @@ you type a prompt
                                                            or the agent launches a Claude subagent
       │
       ▼
- guard.js  (PreToolUse / Stop hooks) makes the main session delegate instead of doing the work itself
+ guard.js  (PreToolUse hook; a Stop hook only records) makes the main session delegate instead of doing the work itself
 ```
 
 The point is the split, not the saving. The strongest model investigates and decides ("which typeface fits this brand?"); a cheaper one implements the conclusion. A one-line colour change never reaches the expensive model, and an infrastructure design never lands on the cheap one.
@@ -107,7 +107,7 @@ node doctor.js                               # checks the installation
 
 ## The guard
 
-A line in the context is only a suggestion. `guard.js` makes it a duty: while a delegation is pending for the session, the main session can read, search and write the brief, but it cannot edit files inside the repo (`Edit`, `Write`, `NotebookEdit`, and the usual shell edits such as `sed -i`, `tee`, `>` and `>>`). Launching the right delegate clears it. Subagents are never gated. The person can always say "do it yourself", or the agent can run `dispatch.js --release <person|in-progress|no-brief|question>` and say why in one line.
+A line in the context is only a suggestion. `guard.js` makes it a duty: while a delegation is pending for the session, the main session can read, search and write the brief, but it cannot edit files inside the repo (`Edit`, `Write`, `NotebookEdit`, and the usual shell edits such as `sed -i`, `tee`, `>` and `>>` when they write inside the repo; notes in a vault, `~/.claude` or `.superpowers/` pass). Launching the right delegate clears it. Subagents are never gated. The person can always say "do it yourself", or the agent can run `dispatch.js --release <person|in-progress|no-brief|question>` and say why in one line.
 
 It starts in **observe mode**: it only logs what it would have blocked. Look at `node report.js` for a few days, then turn it on:
 
@@ -124,8 +124,9 @@ All of this is one person's data: the author, mostly Spanish prompts, one machin
 - **Classification.** On the 40-row corpus in `test/corpus.jsonl` (31 rows labelled with a kind and a weight, 6 that must stay with the person such as a deploy or a payment, 3 that depend on the conversation): kind correct 26/31, weight within ±1 on 30/31, decision-needed correct 7/7, and **zero leaks**, meaning none of the rows that had to stay with the person would have been delegated. It is small, so treat it as a smoke test, not a benchmark. `node eval.js` reruns it with your key.
 - **Real use, 2 Oct – 4 Nov 2026.** 1,277 prompts classified and 140 dispatches to Codex and Antigravity (38 of them reviews); 26 failed. The reason was only logged from late October, and all four failures recorded since were Codex running out of quota.
 - **Does the session follow the line?** Not reliably. Of 293 recommendations that could be matched to their session, the session delegated first in 6 %, edited the repo itself in 23 %, and did neither in 71 % (mostly conversation with few or no tool calls). An earlier test with a stated-intent prompt got 6 of 6 sessions to delegate, which shows that kind of test does not reproduce the real failure.
-- **Does the guard fix it?** Not shown. In 27 isolated sessions (Sonnet and Opus, fresh and mid-session) every session delegated with or without the guard, so those tests could not tell the two apart. Where the prompt told the session to do the work itself, the guard blocked the first edit in 3 of 3 sessions and the session released it with a recorded reason. Whether it changes real behaviour will only show in `report.js` after you use it.
-- **Token share.** In the author's sessions Opus used roughly 55–60 % of the tokens, mostly in the main conversation, which delegation does not touch. The author's answer is to run the session on a cheaper default model (`"model": "sonnet"` in `settings.json`) and let the router lift the heavy work to Opus or Astra. Whether that costs conversation quality is yours to judge.
+- **Since 4 Nov, with the guard in observe mode.** 46 recommendations to delegate: the session delegated in 5 (11 %), edited the repo itself in 19 (41 %), and did nothing visible in 22 (48 %, conversation again). Those 19 are what enforce mode would have stopped. Not every one of them is a mistake: the person may have changed their mind without saying so.
+- **Does the guard fix it?** Not shown. In 27 isolated sessions (Sonnet and Opus, fresh and mid-session) every session delegated with or without the guard, so those tests could not tell the two apart. Where the prompt told the session to do the work itself, the guard blocked the first edit in 3 of 3 sessions and the session released it with a recorded reason. Whether it changes real behaviour will only show in `report.js` after you turn it on, and nobody has yet.
+- **Token share.** In the author's sessions Opus used roughly 55–60 % of the tokens, mostly in the main conversation, which delegation does not touch. The author's answer is to run the session on a cheaper default model (`"model": "sonnet"` in `settings.json`) and let the router lift the heavy work to Opus or Astra. After the author made that change, Opus fell to 38 % of the tokens over three days (from about 58 %), and its share in the main session from roughly 48 % of all tokens to 17 %; most remaining Opus use is subagents. That drop comes from the default model, not from the routing. Whether it costs conversation quality is yours to judge.
 
 ## Reading the report
 
@@ -140,6 +141,7 @@ Real delegations by agent, repo and failure reason; the guard's counts (delegate
 - It depends on an external classifier and its key. If Jev is down or slow (the hook gives up after 3 seconds), the prompt goes through untouched.
 - Skills are text. The guard is the only part that does not rely on the agent choosing to comply, and it only covers edits to files in the repo, not `node -e` or Python writing a file.
 - It cannot change the model of the session you are in. It can only advise, and `install.js` does not touch your `model` setting.
+- Antigravity cannot run commands, so a build task that needs to run tests can fail with a denied action: both `agy-opus` build dispatches in the author's logs did, and `dispatch.js` reports it as `denied` rather than success. The router falls back to Antigravity only when Codex is spent or disabled.
 - Codex and Antigravity model names, plans and CLI flags change often. The defaults will age; override them in `config.json`.
 - Internal names in older log entries were Spanish; `report.js` reads both.
 

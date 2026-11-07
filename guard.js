@@ -58,19 +58,28 @@ function delegatesTo(agent, tool, input = {}) {
   return Boolean(m && m[1] === agent);
 }
 
+// Folders a workflow keeps its own notes in, inside the repo: writing there is not the work being delegated.
+const SCRATCH = ['.superpowers'];
+
+function insideWork(filePath, cwd) {
+  let f = String(filePath || '');
+  if (f === '~' || f.startsWith('~/')) f = path.join(os.homedir(), f.slice(1));
+  const root = path.resolve(cwd || '.');
+  const p = path.resolve(root, f);
+  const outside = [os.tmpdir(), '/tmp/', '/private/tmp/', path.join(os.homedir(), '.claude') + path.sep, ...SCRATCH.map((d) => path.join(root, d) + path.sep)];
+  return !outside.some((d) => p.startsWith(d)) && p.startsWith(root + path.sep);
+}
+
 // ponytail: catches the usual shell edits, not `node -e` or python writing a file; the point is to stop
 // a session taking the work by habit, not to contain one trying to escape. Quoted text is dropped first
 // so `grep "a > b"` passes; a redirect to a quoted or variable path passes too (usually a scratch file).
-function bashWrites(command) {
-  const c = String(command || '').replace(/<<-?\s*['"]?(\w+)['"]?[\s\S]*?\n\1\b/g, '<<H').replace(/'[^']*'|"[^"]*"/g, '""');
-  return /\b(sed|perl)\s+(-\w*\s+)*-\w*i\b|\bsed\s+--in-place\b|\btee\s|\bgit\s+apply\b/.test(c) ||
-    /(^|[^\d&>=\-])>>?\s*(?![&"$\s>]|\/dev\/|\/tmp\/|\/private\/tmp\/|~\/\.claude\/)\S/.test(c);
-}
+// A redirect counts only when its target is inside the repo: notes in a vault or ~/.claude are not the work.
+const REDIRECT = /(^|[^\d&>=\-])>>?\s*(?![&"$\s>]|\/dev\/)([^\s;&|<>()]+)/g;
 
-function insideWork(filePath, cwd) {
-  const p = path.resolve(cwd || '.', String(filePath || ''));
-  const outside = [os.tmpdir(), '/tmp/', '/private/tmp/', path.join(os.homedir(), '.claude') + path.sep];
-  return !outside.some((d) => p.startsWith(d)) && p.startsWith(path.resolve(cwd || '.') + path.sep);
+function bashWrites(command, cwd) {
+  const c = String(command || '').replace(/<<-?\s*['"]?(\w+)['"]?[\s\S]*?\n\1\b/g, '<<H').replace(/'[^']*'|"[^"]*"/g, '""');
+  if (/\b(sed|perl)\s+(-\w*\s+)*-\w*i\b|\bsed\s+--in-place\b|\btee\s|\bgit\s+apply\b/.test(c)) return true;
+  return [...c.matchAll(REDIRECT)].some((m) => insideWork(m[2], cwd));
 }
 
 const reasonFor = (agent) => `[router] This work belongs to ${agent}, not to the session. Delegate it now following the router-jev skill, with a complete brief. ` +
@@ -83,7 +92,7 @@ function verdict(queue, { tool_name: tool, tool_input: input = {}, cwd, agent_id
   const release = tool === 'Bash' && String(input.command || '').match(/\bdispatch\.js\s+--release\s+([a-z-]+)/);
   if (release) return { action: 'release', why: RELEASES.includes(release[1]) ? release[1] : 'other' };
   if (delegatesTo(queue[0], tool, input)) return { action: 'consume', agent: queue[0] };
-  const writes = WRITE_TOOLS.has(tool) ? insideWork(input.file_path || input.notebook_path, cwd) : tool === 'Bash' && bashWrites(input.command);
+  const writes = WRITE_TOOLS.has(tool) ? insideWork(input.file_path || input.notebook_path, cwd) : tool === 'Bash' && bashWrites(input.command, cwd);
   return writes ? { action: 'deny', agent: queue[0], reason: reasonFor(queue[0]) } : { action: 'allow' };
 }
 
