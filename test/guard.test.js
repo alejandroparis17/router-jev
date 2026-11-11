@@ -47,8 +47,8 @@ test('a release is recorded by category, never free text', () => {
 });
 
 test('shell edits are caught; reading is not', () => {
-  for (const c of ['sed -i "" s/a/b/ f.js', 'sed -i.bak s/a/b/ f', 'perl -pi -e s/a/b/ f', 'echo x > src/a.js', 'cat >> notes.txt <<EOF', 'cat a | tee b', 'git apply p.diff', 'cat > src/a.js <<EOF\nx\nEOF']) assert.ok(bashWrites(c), c);
-  for (const c of ['cat a.js', 'grep -n "a > b" f', 'ls 2>/dev/null', 'npm test 2>&1 | tail -5', 'sed -n 1,5p f', 'cat x > /tmp/y', 'node x.js > "$S/out.json"', 'echo hi >&2', "node -e 'a>1'", 'git status', 'python3 - <<EOF\nif a > b: pass\nEOF', 'git commit -q -F - <<EOF\nx -> y\nEOF', 'f() => 1']) assert.ok(!bashWrites(c), c);
+  for (const c of ['sed -i "" s/a/b/ f.js', 'sed -i.bak s/a/b/ f', 'perl -pi -e s/a/b/ f', 'echo x > src/a.js', 'cat >> notes.txt <<EOF', 'cat a | tee b', 'git apply p.diff', 'cat > src/a.js <<EOF\nx\nEOF']) assert.ok(bashWrites(c, '/repo'), c);
+  for (const c of ['cat a.js', 'grep -n "a > b" f', 'ls 2>/dev/null', 'npm test 2>&1 | tail -5', 'sed -n 1,5p f', 'cat x > /tmp/y', 'node x.js > "$S/out.json"', 'echo hi >&2', "node -e 'a>1'", 'git status', 'python3 - <<EOF\nif a > b: pass\nEOF', 'git commit -q -F - <<EOF\nx -> y\nEOF', 'f() => 1']) assert.ok(!bashWrites(c, '/repo'), c);
 });
 
 test('a redirect counts only when it writes inside the repo: notes elsewhere or in a scratch folder pass', () => {
