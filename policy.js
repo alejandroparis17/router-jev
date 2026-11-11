@@ -1,10 +1,12 @@
 'use strict';
 // The routing table. Pure: Jev supplies judgments, this decides who does the work.
 // The thresholds are provisional until eval.js has calibrated them on the corpus.
-const POLICY_VERSION = 1;
+const POLICY_VERSION = 2;
 const MIN_TYPE = 0.6;
 const MIN_DECIDE = 0.5;
-const MAX_RISK = 0.3;
+// Measured on the labelled corpus: tasks that must stay with the person score 0.92 or more, normal work 0.71 or less.
+// 0.3 held a third of ordinary work that merely mentions production; 0.6 holds 3 of 36 and still leaks none of 13.
+const MAX_RISK = 0.6;
 const MAX_DEPENDS = 0.4;
 
 // agy's first rung is 'write'; it also takes over building when Codex runs out (see route.js).

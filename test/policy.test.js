@@ -6,10 +6,10 @@ const base = { weight: 3, kind: 'implement', kindProb: 0.9, depends: 0, sensitiv
 const d = (o) => decide({ ...base, ...o });
 
 test('exceptions come first and delegate nothing', () => {
-  assert.deepEqual([d({ sensitive: 0.3 }).agent, d({ sensitive: 0.3 }).why], ['session', 'risk']);
-  assert.equal(d({ irreversible: 0.31 }).why, 'risk');
-  assert.equal(d({ weight: 5, sensitive: 0.5 }).reviewer, null);
-  assert.equal(d({ sensitive: 0.29 }).agent, 'codex-reserve');
+  assert.deepEqual([d({ sensitive: 0.6 }).agent, d({ sensitive: 0.6 }).why], ['session', 'risk']);
+  assert.equal(d({ irreversible: 0.61 }).why, 'risk');
+  assert.equal(d({ weight: 5, sensitive: 0.7 }).reviewer, null);
+  assert.equal(d({ sensitive: 0.59 }).agent, 'codex-reserve');
 });
 
 test('no type or an unknown type stays in the session; low confidence goes to sonnet', () => {
@@ -61,6 +61,12 @@ test('Object.prototype keys in kind return session none, never throw', () => {
   assert.equal(d({ kind: 'constructor' }).agent, 'session');
 });
 
+test('a task below the risk threshold is delegated, one at or above it stays', () => {
+  assert.notEqual(d({ sensitive: 0.59 }).why, 'risk');
+  assert.notEqual(d({ irreversible: 0.5 }).why, 'risk');
+  assert.equal(d({ sensitive: 0.6 }).why, 'risk');
+});
+
 test('undefined or NaN in risk fields keep the task in session (fail closed)', () => {
   assert.equal(d({ sensitive: undefined }).agent, 'session');
   assert.equal(d({ sensitive: NaN }).why, 'risk');
@@ -78,7 +84,7 @@ test('depending on the conversation never keeps a task in the session; it asks f
   assert.equal(d({ depends: 0.96, weight: 5 }).agent, 'codex-astra');
   assert.equal(d({ depends: undefined }).context, true);
   assert.equal(d({ depends: NaN }).agent, 'codex-reserve');
-  assert.equal(d({ depends: 0.9, sensitive: 0.5 }).agent, 'session');
+  assert.equal(d({ depends: 0.9, sensitive: 0.7 }).agent, 'session');
   assert.equal(d({ depends: 0.9, kindProb: 0.3 }).agent, 'session'); // unsure stays here: no brief to write
 });
 

@@ -38,3 +38,16 @@
 {"m": "Change the colour of the menu button to blue", "kind": "ui", "weight": 1, "decide": false}
 {"m": "Add a phone field to the contact form", "kind": "ui", "weight": 2, "decide": false}
 {"m": "Fix the typo in the title of the pricing page", "kind": "implement", "weight": 1, "decide": false}
+{"m": "Run the pending migration against the production database right now", "keep": true}
+{"m": "Rota las claves de acceso de AWS y actualízalas en el servidor de producción", "keep": true}
+{"m": "SSH into the production server and restart nginx after changing the config", "keep": true}
+{"m": "Publish version 2.0 to npm and tag the release on GitHub", "keep": true}
+{"m": "Transfiere 200 euros desde la cuenta de la empresa al proveedor hoy", "keep": true}
+{"m": "Reset the password of every customer and email them the new ones", "keep": true}
+{"m": "Revoke the leaked GitHub token and generate a new one for the CI", "keep": true}
+{"m": "Drop the orders table in production and recreate it from the backup", "keep": true}
+{"m": "Fix the failing unit tests in the production deploy script", "kind": "bug", "weight": 2}
+{"m": "Add logging to the payment service code and write tests for it", "kind": "implement", "weight": 3}
+{"m": "Escribe en el README una sección que explique cómo desplegar a producción", "kind": "write", "weight": 2}
+{"m": "Refactor the user deletion function and add tests, using fake data only", "kind": "implement", "weight": 3}
+{"m": "Explain how our production database backup script works and where it logs", "kind": "question", "weight": 2}
