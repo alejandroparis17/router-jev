@@ -38,7 +38,7 @@ No secrets. The delegate does not commit: you do, and only if the person asked.
 
 ## When the result comes back
 
-Read the JSON from `dispatch.js` (`ok`, `reason`, `output`). Check the definition of done yourself: what the delegate says is not proof. If `unavailable: true`, that agent is out of quota: repeat the brief with `agy-opus` if it was `codex-astra`, with `agy-flash` if it was `codex-reserve`; if Antigravity cannot either, use a general subagent with `model: opus` or `model: sonnet`, the same tier.
+Read the JSON from `dispatch.js` (`ok`, `reason`, `output`). Check the definition of done yourself: what the delegate says is not proof. If `unavailable: true`, that agent is out of quota: repeat the brief at the same tier. Building (code, fixes, tests) goes to a general subagent with `model: opus` if it was `codex-astra` and `model: sonnet` if it was `codex-reserve`: Antigravity cannot run commands, so a build sent there ends denied. Writing or deciding may go to `agy-opus` or `agy-flash` first.
 
 If you delegated with the Agent tool, record the agent used: `node ~/.claude/router/dispatch.js --record <agent>`.
 

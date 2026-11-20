@@ -75,7 +75,7 @@ test('report counts thinking phases and Opus sessions only among classifications
   });
   assert.equal(result.status, 0);
   assert.match(result.stdout, /^decide→implement phases: +2$/m);
-  assert.match(result.stdout, /^opus sessions: +2 of 4 classified$/m);
+  assert.match(result.stdout, /^opus\/fable sessions: +2 of 4 classified$/m);
 });
 
 const { tokensByModel, readTokens } = require('../report');

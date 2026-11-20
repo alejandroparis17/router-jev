@@ -68,7 +68,7 @@ function summarize(rows, sinceIso) {
     since: sinceIso,
     classified: cls.length,
     thinking: cls.filter((r) => r.think).length,
-    opusSessions: cls.filter((r) => r.sessionModel === 'opus').length,
+    opusSessions: cls.filter((r) => r.sessionModel === 'opus' || r.sessionModel === 'fable').length,
     skipped: count(rs.filter((r) => r.skip), (r) => r.skip),
     decisions: count(cls, (r) => `${r.agent}/${r.why}`),
     recommended: rec.length,
@@ -99,7 +99,7 @@ function parseSince(arg, now = Date.now()) {
 
 // Work tokens (new input + cache writes + output; cache reads excluded) per model family, split
 // between the main session and subagents. Reads only counts and model ids, never message text.
-const FAMILIES = ['opus', 'sonnet', 'haiku'];
+const FAMILIES = ['fable', 'opus', 'sonnet', 'haiku'];
 function keepUsage(byMessage, line, since) {
   let d;
   try { d = JSON.parse(line); } catch { return; }
@@ -175,7 +175,7 @@ function print(s) {
   console.log(`period:                   since ${s.since}`);
   console.log(`messages classified:      ${s.classified}`);
   console.log(`decide→implement phases:  ${s.thinking}`);
-  console.log(`opus sessions:            ${s.opusSessions} of ${s.classified} classified`);
+  console.log(`opus/fable sessions:      ${s.opusSessions} of ${s.classified} classified`);
   console.log(`skipped:                  ${kv(s.skipped)}`);
   console.log(`decisions:                ${kv(s.decisions)}`);
   console.log(`real delegations:         ${s.delegations.total} · failed ${s.failed}`);

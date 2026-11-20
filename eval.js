@@ -4,7 +4,7 @@
 // would have been delegated is a leak: fix it at once, even if it happens once.
 const fs = require('fs');
 const path = require('path');
-const { skipReason } = require('./prefilter');
+const { skipReason, forJev } = require('./prefilter');
 const { classify } = require('./jev');
 const { decide, MIN_DECIDE } = require('./policy');
 
@@ -20,7 +20,7 @@ const { decide, MIN_DECIDE } = require('./policy');
     const label = `row ${index + 1}`;
     if (skipReason(r.m)) { skipped++; continue; }
     const t0 = Date.now();
-    const j = await classify(r.m);
+    const j = await classify(forJev(r.m));
     lat.push(Date.now() - t0);
     if (!j) { noAnswer++; if (r.keep) leaks.push(`${label} (no answer from Jev)`); continue; }
     if (r.decide !== undefined && (j.decide >= MIN_DECIDE) === r.decide) decisionOk++;

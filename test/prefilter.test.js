@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { skipReason, MAX_CHARS } = require('../prefilter');
+const { skipReason, forJev, MAX_CHARS, SCAN_CHARS } = require('../prefilter');
 
 const long = 'palabra '.repeat(300);
 
@@ -20,7 +20,8 @@ test('skipReason', () => {
     ['-----BEGIN RSA PRIVATE KEY----- MIIE pega esto aquí', 'secret'],
     ['configure sk-abcdefghijklmnopqrstuvwxyz1234 in the client', 'secret'],
     ['arregla el flujo de reset password cuando el usuario no existe', null],
-    [long, 'long'],
+    [long, null],
+    ['palabra '.repeat(3000), 'long'],
     ['a'.repeat(MAX_CHARS + 1), 'short'],
     ['OPENAI_API_KEY=sk-short está aquí en la configuración', 'secret'],
     ['El token GITHUB_TOKEN=ghp_abcdefghijklmnopqrst está aquí ahora', 'secret'],
@@ -59,4 +60,13 @@ test('skipReason is linear-time on pathological input', () => {
     assert.equal(skipReason(m), want);
     assert.ok(Date.now() - t0 < 200, `${m.slice(0, 6)} took ${Date.now() - t0}`);
   }
+});
+
+test('Jev sees a short message whole and a long one as its start and its end', () => {
+  assert.equal(forJev('  fix the login bug please now  '), 'fix the login bug please now');
+  const m = `ASK-AT-START ${'x '.repeat(5000)} ASK-AT-END`;
+  const sent = forJev(m);
+  assert.ok(sent.length <= MAX_CHARS + 3, String(sent.length));
+  assert.ok(sent.startsWith('ASK-AT-START') && sent.endsWith('ASK-AT-END'));
+  assert.ok(MAX_CHARS < SCAN_CHARS, 'everything Jev sees has been scanned for secrets');
 });

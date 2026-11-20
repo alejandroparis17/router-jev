@@ -5,7 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { skipReason } = require('./prefilter');
+const { skipReason, forJev } = require('./prefilter');
 const { classify } = require('./jev');
 const { decide, POLICY_VERSION } = require('./policy');
 const log = require('./log');
@@ -32,7 +32,7 @@ function sessionModel(transcriptPath) {
       try { row = JSON.parse(rows[i]); } catch { continue; }
       if (row?.type !== 'assistant' || typeof row.message?.model !== 'string') continue;
       const model = row.message.model.toLowerCase();
-      const found = ['opus', 'sonnet', 'haiku'].find((family) => model.includes(family));
+      const found = ['fable', 'opus', 'sonnet', 'haiku'].find((family) => model.includes(family));
       if (found) return found; // '<synthetic>' and the like: keep looking earlier
     }
   } catch { /* unknown model must not interrupt a prompt */ }
@@ -79,12 +79,15 @@ function down(agent, now = Date.now()) {
   }
 }
 
-// Keep the tier that was lost, and spend another plan before the scarcest one.
+// Keep the tier that was lost, and spend another plan before the scarcest one. Antigravity cannot run
+// commands, so it takes over writing and thinking but never building: a build there ends denied.
 const ALTERNATIVES = { 'codex-astra': ['agy-opus', 'claude-opus'], 'agy-opus': ['claude-opus'], 'codex-reserve': ['agy-flash', 'claude-sonnet'], 'agy-flash': ['claude-sonnet'] };
-const available = (agent, now) => (ALTERNATIVES[agent] && down(agent, now) ? ALTERNATIVES[agent].find((a) => a.startsWith('claude-') || !down(a, now)) : agent);
+const available = (agent, now, { build = false } = {}) => (ALTERNATIVES[agent] && down(agent, now)
+  ? ALTERNATIVES[agent].find((a) => a.startsWith('claude-') || (!build && !down(a, now)))
+  : agent);
 
-function avoidDownAgent(d, now = Date.now()) {
-  const agent = available(d.agent, now);
+function avoidDownAgent(d, now = Date.now(), kind) {
+  const agent = available(d.agent, now, { build: kind !== 'write' });
   if (agent === d.agent) return d;
   return { ...d, agent, why: 'no-quota', skills: [], reviewer: null, up: null, context: d.context, fallbackFrom: d.agent };
 }
@@ -147,16 +150,17 @@ async function main() {
     return log.append({ ...entry, skip, ms: Date.now() - t0 });
   }
 
-  const j = await classify(prompt);
+  const j = await classify(forJev(prompt));
   if (!j) {
     setPending(session_id, []);
     return log.append({ ...entry, skip: 'jev-unavailable', ms: Date.now() - t0 });
   }
 
-  let d = avoidDownAgent(decide(j));
+  let d = avoidDownAgent(decide(j), Date.now(), j.kind);
   if (d.reviewer && down(d.reviewer)) d = { ...d, reviewer: null }; // never ask for a review from a plan that is off or spent
   const model = sessionModel(transcript_path);
-  if (model === 'opus' && j.kind !== 'question' && j.weight <= 2 &&
+  // An expensive session (Opus or Fable) hands light work to Haiku.
+  if ((model === 'opus' || model === 'fable') && j.kind !== 'question' && j.weight <= 2 &&
       ((d.agent === 'session' && d.why === 'simple') || (d.agent === 'codex-reserve' && d.why === 'ladder'))) {
     d = { ...d, agent: 'claude-haiku', why: 'tier', skills: [], reviewer: null, up: null };
   }
